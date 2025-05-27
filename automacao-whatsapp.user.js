@@ -61,7 +61,7 @@ const MINHA_KEY = getMinhaKey();
         textoMarcaDagua.style.whiteSpace = 'nowrap';
         textoMarcaDagua.innerHTML = 'ESTÁGISCRAVO DE BIEL ATIVO!<span style="display:inline-block; width:5px;"></span>'; // mensagem única em cada pc
         textoMarcaDagua.style.color = '#FFFFFF';
-        textoMarcaDagua.style.backgroundColor = '#25D366';
+        textoMarcaDagua.style.backgroundColor = '#00baff'; // ALTERADO para azul
         textoMarcaDagua.style.padding = '4px 10px';
         textoMarcaDagua.style.borderRadius = '20px';
         textoMarcaDagua.style.fontWeight = 'bold';
@@ -215,7 +215,7 @@ const MINHA_KEY = getMinhaKey();
     let loadingTexto = null;
     let fecharComCliqueHandler = null;
 
-    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#25D366') {
+    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') { // ALTERADO para azul
         if (loadingContainerAnim) return;
 
         loadingContainerAnim = document.createElement('div');
@@ -261,7 +261,7 @@ const MINHA_KEY = getMinhaKey();
         }, 100);
     }
 
-    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#25D366') {
+    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') { // ALTERADO para azul
         if (!loadingTexto) return;
 
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
@@ -333,13 +333,13 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function verificarKeyAutorizadaComPopup() {
-        criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#25D366');
+        criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#00baff'); // ALTERADO para azul
         const keyOK = await verificarKeyAutorizada();
 
         if (keyOK) {
-            await atualizarTextoPopup('KEY VÁLIDA', false, 1000, false, '#FFFFFF', '#25D366');
+            await atualizarTextoPopup('KEY VÁLIDA', false, 1000, false, '#FFFFFF', '#00baff'); // ALTERADO para azul
             await esperar(2000);
-            await atualizarTextoPopup('MENSAGENS SENDO ENVIADAS... RELAXA AI E NÃO SAI DESSA TELA', false, 100, false, '#FFFFFF', '#25D366');
+            await atualizarTextoPopup('MENSAGENS SENDO ENVIADAS... RELAXA AI E NÃO SAI DESSA TELA', false, 100, false, '#FFFFFF', '#00baff'); // ALTERADO para azul
             await esperar(1200);
             return true;
         } else {
