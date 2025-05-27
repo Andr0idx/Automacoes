@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Extrator ARCO
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.0
+// @version      1.1
 // @description  Extrai dados Na base e Na rua do Arco Loggi com melhorias visuais e animações inspiradas no ESTÁGISCRAVO. Abrindo abas sequencialmente, coleta dados via postMessage, botão inicia extração e log visual aprimorado.
 // @author       Gabriel Guedes Araujo da Sila
 // @match        https://arco.loggi.com/*/na-base/colecoes
