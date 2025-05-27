@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Extrator ARCO
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.1
+// @version      1.0
 // @description  Extrai dados Na base e Na rua do Arco Loggi com melhorias visuais e animações inspiradas no ESTÁGISCRAVO. Abrindo abas sequencialmente, coleta dados via postMessage, botão inicia extração e log visual aprimorado.
 // @author       Gabriel Guedes Araujo da Sila
 // @match        https://arco.loggi.com/*/na-base/colecoes
@@ -48,7 +48,7 @@
             top: '0',
             left: '0',
             width: '100%',
-            backgroundColor: '#25D366',
+            backgroundColor: '#00baff',
             color: 'white',
             padding: '10px',
             fontSize: '16px',
@@ -89,7 +89,7 @@
         textoMarcaDagua.style.whiteSpace = 'nowrap';
         textoMarcaDagua.innerHTML = 'EXTRATOR ARCO LOGGI ATIVO!<span style="display:inline-block; width:5px;"></span>';
         textoMarcaDagua.style.color = '#FFFFFF';
-        textoMarcaDagua.style.backgroundColor = '#25D366';
+        textoMarcaDagua.style.backgroundColor = '#00baff';
         textoMarcaDagua.style.padding = '4px 10px';
         textoMarcaDagua.style.borderRadius = '20px';
         textoMarcaDagua.style.fontWeight = 'bold';
@@ -134,7 +134,7 @@
         }, 5600);
     }
 
-    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#25D366') {
+    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (loadingContainerAnim) return;
 
         loadingContainerAnim = document.createElement('div');
@@ -180,7 +180,7 @@
         }, 100);
     }
 
-    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#25D366') {
+    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (!loadingTexto) return;
 
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
@@ -257,7 +257,7 @@
         console.groupEnd();
 
         const textoPopup = `${titulo}\n${(typeof detalhes === 'string' && detalhes.length < 80) ? detalhes : ''}`;
-        atualizarTextoPopup(textoPopup, false, 0, false, '#FFFFFF', cor === 'green' ? '#25D366' : '#d63031');
+        atualizarTextoPopup(textoPopup, false, 0, false, '#FFFFFF', cor === 'green' ? '#00baff' : '#d63031');
     }
 
     async function esperarElemento(seletor, timeoutMs = 10000) {
@@ -437,14 +437,14 @@
             const textoBase = `${siglaBase} - TOTAL DE PACOTES EM BASE: ${base.totalNaBase ?? '-'} | Em atraso: ${base.comAtraso ?? '-'} | Para hoje: ${base.paraHoje ?? '-'}`;
             const textoRua = `TOTAL DE PACOTES NA RUA: ${rua.naRua ?? '-'} | Para hoje: ${rua.paraHoje ?? '-'} | Atrasados: ${rua.atrasados ?? '-'} | Insucessos: ${rua.insucessos ?? '-'}`;
 
-            logVisual(`Resultados [${siglaBase}]`, `${textoBase}\n${textoRua}`, '#25D366');
+            logVisual(`Resultados [${siglaBase}]`, `${textoBase}\n${textoRua}`, '#00baff');
             mostrarBanner(textoBase + '\n' + textoRua);
         }
     }
 
     async function iniciarExtracaoComPermissaoUser() {
         try {
-            criarPopupAnimadoAnim('Buscando dados na planilha...', '#FFFFFF', '#25D366');
+            criarPopupAnimadoAnim('Buscando dados na planilha...', '#FFFFFF', '#00baff');
             const rows = await buscarDadosPlanilha();
             if (!rows || rows.length === 0) {
                 mostrarBanner('Nenhuma entrada na planilha para extrair.');
@@ -474,7 +474,7 @@
 
             for (const linha of linhasFiltradas) {
                 resultados[linha.siglaBase] = resultados[linha.siglaBase] || {};
-                logVisual('Iniciando extração', `Base: ${linha.siglaBase}`, '#25D366');
+                logVisual('Iniciando extração', `Base: ${linha.siglaBase}`, '#00baff');
 
                 async function abrirExtrairFechar(url, tipo) {
                     if (!isUrlValida(url)) return null;
@@ -504,7 +504,7 @@
                             window.removeEventListener('message', mensagemHandler);
 
                             resultados[linha.siglaBase][tipo] = event.data || null;
-                            logVisual(`Dados recebidos [${linha.siglaBase} - ${tipo}]`, JSON.stringify(event.data), '#25D366');
+                            logVisual(`Dados recebidos [${linha.siglaBase} - ${tipo}]`, JSON.stringify(event.data), '#00baff');
 
                             if (!aba.closed) {
                                 try { aba.close(); } catch {}
@@ -539,7 +539,7 @@
 
             mostrarResumoFormatado(resultados, linhasFiltradas);
             mostrarBanner('Extração completa! Veja console para detalhes.');
-            await atualizarTextoPopup('Extração completa!', true, 0, false, '#FFFFFF', '#25D366');
+            await atualizarTextoPopup('Extração completa!', true, 0, false, '#FFFFFF', '#00baff');
 
             console.log('✅ Extração completa. Resultados:', resultados);
             baixarCsvResultados(resultados);
@@ -610,7 +610,7 @@
             });
         }
 
-        logVisual('🟢 Aba filha carregada', 'Esperando dados ficarem prontos...', '#25D366');
+        logVisual('🟢 Aba filha carregada', 'Esperando dados ficarem prontos...', '#00baff');
 
         let tipo = null;
         if (window.location.pathname.includes('/na-base/colecoes')) tipo = 'EM BASE';
@@ -623,7 +623,7 @@
 
         try {
             await esperarPorDadosProntos(tipo, 20000, 500);
-            logVisual('🟢 Dados prontos para extração', `Tipo: ${tipo}`, '#25D366');
+            logVisual('🟢 Dados prontos para extração', `Tipo: ${tipo}`, '#00baff');
         } catch (e) {
             console.warn('⚠️ ', e.message, '- tentando extrair de qualquer forma');
             await atualizarTextoPopup('Timeout esperando dados, extraindo com dados incompletos!', false, 0, true, '#FFFFFF', '#d63031');
@@ -636,12 +636,12 @@
                 ? extrairDadosNaRua(document)
                 : { erro: 'Tipo de página desconhecido para extração' };
 
-        logVisual('🟢 Dados extraídos', JSON.stringify(dadosExtraidos), '#25D366');
+        logVisual('🟢 Dados extraídos', JSON.stringify(dadosExtraidos), '#00baff');
 
         if (window.opener && !window.opener.closed) {
             try {
                 window.opener.postMessage(dadosExtraidos, '*');
-                logVisual('🟢 Dados enviados', 'Dados enviados para janela mãe (opener)', '#25D366');
+                logVisual('🟢 Dados enviados', 'Dados enviados para janela mãe (opener)', '#00baff');
             } catch (e) {
                 console.error('Erro ao enviar postMessage:', e);
                 await atualizarTextoPopup('Erro ao enviar dados para a janela mãe!', true, 0, false, '#FFFFFF', '#d63031');
@@ -667,7 +667,7 @@
             width: '24px',
             height: '24px',
             padding: '0',
-            backgroundColor: '#25D366',
+            backgroundColor: '#00baff',
             border: 'none',
             borderRadius: '50%',
             fontWeight: 'bold',
@@ -705,7 +705,7 @@
             btn.style.fontSize = '12px';
             btn.style.borderRadius = '20px';
 
-            await atualizarTextoPopup('Iniciando extração...', false, 0, false, '#FFFFFF', '#25D366');
+            await atualizarTextoPopup('Iniciando extração...', false, 0, false, '#FFFFFF', '#00baff');
             try {
                 await iniciarExtracaoComPermissaoUser();
             } catch (e) {
@@ -737,8 +737,8 @@
 
         criarBotaoExtrair();
 
-        console.log('%c🚀 Extrator Arco Loggi iniciado', 'color: #25D366; font-weight: bold; font-size: 16px;');
-        console.log('%cClique no botão verde no canto inferior direito para iniciar a extração.', 'color: #666; font-size: 13px;');
+        console.log('%c🚀 Extrator Arco Loggi iniciado', 'color: #00baff; font-weight: bold; font-size: 16px;');
+        console.log('%cClique no botão azul no canto inferior direito para iniciar a extração.', 'color: #666; font-size: 13px;');
     }
 
     window.ExtratorArcoLoggi = {
