@@ -35,10 +35,8 @@ const MINHA_KEY = getMinhaKey();
     let iconeMarcaDagua = null;
     let textoMarcaDagua = null;
 
-    // Variável controle para popups prioritários ativos
     let popupPrioritarioAtivo = false;
 
-    // Função para detectar se texto corresponde a popup prioritário
     function ehPopupPrioritario(texto) {
         const textosPrioritarios = [
             'ESTÁGISCRAVO ATIVO',
@@ -60,7 +58,7 @@ const MINHA_KEY = getMinhaKey();
         container.style.overflow = 'hidden';
         container.style.zIndex = '9999';
         container.style.userSelect = 'none';
-        container.style.pointerEvents = 'auto';  // importante para capturar eventos de mouse
+        container.style.pointerEvents = 'auto';
 
         const textoContainer = document.createElement('div');
         textoContainer.style.position = 'absolute';
@@ -79,7 +77,6 @@ const MINHA_KEY = getMinhaKey();
         textoMarcaDagua.style.borderRadius = '20px';
         textoMarcaDagua.style.fontWeight = 'bold';
         textoMarcaDagua.style.fontSize = '16px';
-        textoMarcaDagua.style.whiteSpace = 'nowrap';
         textoMarcaDagua.style.opacity = '1';
         textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
         textoMarcaDagua.style.transition = 'transform 1s ease-in-out, opacity 1s ease';
@@ -96,7 +93,7 @@ const MINHA_KEY = getMinhaKey();
         iconeMarcaDagua = document.createElement('div');
         iconeMarcaDagua.textContent = '🤖';
         iconeMarcaDagua.style.fontSize = '30px';
-        iconeMarcaDagua.style.opacity = '1';  // iniciar com opacidade forte
+        iconeMarcaDagua.style.opacity = '1';
         iconeMarcaDagua.style.transition = 'opacity 0.3s ease';
         iconeContainer.appendChild(iconeMarcaDagua);
 
@@ -104,27 +101,17 @@ const MINHA_KEY = getMinhaKey();
         container.appendChild(iconeContainer);
         document.body.appendChild(container);
 
-        // Eventos de mouse no iconeContainer para hover
         iconeContainer.addEventListener('mouseenter', () => {
-            // Se popup prioritário estiver ativo, não dispara o efeito do ícone
             if (popupPrioritarioAtivo) return;
-
-            // Ícone fica opaco (forte)
             iconeMarcaDagua.style.opacity = '1';
-
-            // Mostra popup azul animado com "QUAL A BOA?"
             atualizarTextoPopup('QUAL A BOA?', false, 0, false, '#FFFFFF', '#00baff');
         });
 
         iconeContainer.addEventListener('mouseleave', () => {
-            // Ícone volta a ficar fraco
             iconeMarcaDagua.style.opacity = '0.15';
-
-            // Fecha popup animado
             fecharPopupAnimado();
         });
 
-        // Inicio das animações da marca d'água normal
         setTimeout(() => {
             textoMarcaDagua.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
         }, 100);
@@ -160,35 +147,24 @@ const MINHA_KEY = getMinhaKey();
 
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-        if (!barraPesquisa) {
-            console.error('Barra de pesquisa não encontrada!');
-            return null;
-        }
-
+        if (!barraPesquisa) return null;
         barraPesquisa.focus();
         document.execCommand('selectAll', false, null);
         document.execCommand('delete', false, null);
         await esperar(500);
-
         document.execCommand('insertText', false, nomeGrupo);
         await esperar(1500);
-
         document.execCommand('delete', false, null);
         await esperar(800);
-
         document.execCommand('insertText', false, nomeGrupo.slice(-1));
         await esperar(2000);
-
         const resultados = Array.from(document.querySelectorAll('span[title]'));
         const grupoElemento = resultados.find(el => el.title.toLowerCase() === nomeGrupo.toLowerCase()) || null;
-
         if (grupoElemento) {
-            console.log(`Encontrado grupo "${nomeGrupo}". Abrindo...`);
             cliqueReal(grupoElemento);
             await esperar(3000);
             return grupoElemento;
         } else {
-            console.warn(`Grupo "${nomeGrupo}" não encontrado.`);
             return null;
         }
     }
@@ -209,35 +185,18 @@ const MINHA_KEY = getMinhaKey();
 
     async function enviarMensagem(nomeGrupo, mensagem) {
         const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
-        if (!grupoElemento) {
-            console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
-            return;
-        }
-
+        if (!grupoElemento) return;
         const caixa = document.querySelector('[contenteditable="true"][data-tab="10"]');
-        if (!caixa) {
-            console.error('Caixa de mensagem não encontrada!');
-            return;
-        }
-
+        if (!caixa) return;
         caixa.focus();
-
         for (const linha of mensagem.split('\n')) {
             document.execCommand('insertText', false, linha);
             inserirQuebraDeLinha();
             await esperar(100);
         }
-
         await esperar(500);
-
         const botao = document.querySelector('span[data-icon="send"]');
-        if (botao) {
-            botao.click();
-            console.log(`Mensagem enviada para: ${nomeGrupo}`);
-        } else {
-            console.warn('Botão de enviar não encontrado!');
-        }
-
+        if (botao) botao.click();
         const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
         if (barraPesquisa) {
             barraPesquisa.focus();
@@ -252,7 +211,6 @@ const MINHA_KEY = getMinhaKey();
 
     function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (loadingContainerAnim) return;
-
         loadingContainerAnim = document.createElement('div');
         loadingContainerAnim.style.position = 'fixed';
         loadingContainerAnim.style.bottom = '8px';
@@ -263,7 +221,6 @@ const MINHA_KEY = getMinhaKey();
         loadingContainerAnim.style.zIndex = '9998';
         loadingContainerAnim.style.userSelect = 'none';
         loadingContainerAnim.style.pointerEvents = 'none';
-
         const textoContainer = document.createElement('div');
         textoContainer.style.position = 'absolute';
         textoContainer.style.top = '50%';
@@ -271,7 +228,6 @@ const MINHA_KEY = getMinhaKey();
         textoContainer.style.transform = 'translateY(-50%)';
         textoContainer.style.overflow = 'hidden';
         textoContainer.style.zIndex = '1';
-
         loadingTexto = document.createElement('div');
         loadingTexto.innerHTML = textoInicial + '<span style="display:inline-block; width:10px;"></span>';
         loadingTexto.style.color = corTexto;
@@ -284,60 +240,39 @@ const MINHA_KEY = getMinhaKey();
         loadingTexto.style.opacity = '1';
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
-
         textoContainer.appendChild(loadingTexto);
         loadingContainerAnim.appendChild(textoContainer);
         document.body.appendChild(loadingContainerAnim);
-
         setTimeout(() => {
             loadingTexto.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
             loadingTexto.style.opacity = '1';
             if (iconeMarcaDagua) iconeMarcaDagua.style.opacity = '1';
         }, 100);
-
-        // Quando criar um popup, verifica se é prioritário para ativar o controle
-        if (ehPopupPrioritario(textoInicial)) {
-            popupPrioritarioAtivo = true;
-        }
+        if (ehPopupPrioritario(textoInicial)) popupPrioritarioAtivo = true;
     }
 
     async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (!loadingTexto) return;
-
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
-
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
-
         await esperar(290);
-
         if (loadingContainerAnim) {
             loadingContainerAnim.remove();
             loadingContainerAnim = null;
             loadingTexto = null;
         }
-
-        if (delayAntesEntrada > 0) {
-            await esperar(delayAntesEntrada);
-        }
-
-        if (!fecharDepois && !fecharDepoisClicar) {
-            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-        }
-
+        if (delayAntesEntrada > 0) await esperar(delayAntesEntrada);
+        if (!fecharDepois && !fecharDepoisClicar) criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
         if (fecharDepois) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-            setTimeout(() => {
-                fecharPopupAnimado();
-            }, 4000);
+            setTimeout(() => fecharPopupAnimado(), 4000);
         }
-
         if (fecharDepoisClicar) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-
             fecharComCliqueHandler = () => {
                 fecharPopupAnimado();
                 document.removeEventListener('click', fecharComCliqueHandler);
@@ -345,32 +280,24 @@ const MINHA_KEY = getMinhaKey();
             };
             document.addEventListener('click', fecharComCliqueHandler);
         }
-
-        // Verifica prioridade após atualizar o texto
         popupPrioritarioAtivo = ehPopupPrioritario(textoNovo);
     }
 
     function fecharPopupAnimado() {
         if (!loadingTexto || !loadingContainerAnim) return;
-
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
-
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
-
         setTimeout(() => {
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
                 loadingTexto = null;
             }
-
-            // Reset da flag de popup prioritário ao fechar popup
             popupPrioritarioAtivo = false;
-
             if (fecharComCliqueHandler) {
                 document.removeEventListener('click', fecharComCliqueHandler);
                 fecharComCliqueHandler = null;
@@ -381,7 +308,6 @@ const MINHA_KEY = getMinhaKey();
     async function verificarKeyAutorizadaComPopup() {
         criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#00baff');
         const keyOK = await verificarKeyAutorizada();
-
         if (keyOK) {
             await atualizarTextoPopup('KEY VALIDA', false, 1000, false, '#FFFFFF', '#00c080');
             await esperar(2000);
@@ -396,44 +322,29 @@ const MINHA_KEY = getMinhaKey();
 
     async function dispararMensagens() {
         const keyOK = await verificarKeyAutorizadaComPopup();
-        if (!keyOK) {
-            console.warn('Mensagens nao serao enviadas.');
-            return;
-        }
-
+        if (!keyOK) return;
         try {
-            console.log('Buscando dados...');
             const res = await fetch(planilhaURL);
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
-
             if (!rows || rows.length === 0) {
-                console.warn('Planilha vazia');
                 if (loadingContainerAnim) {
                     loadingContainerAnim.remove();
                     loadingContainerAnim = null;
                 }
                 return;
             }
-
-            console.log(`Total de linhas: ${rows.length}`);
-
             for (let i = 1; i < rows.length; i++) {
                 const grupo = rows[i].c[1]?.v || '';
                 const mensagem = rows[i].c[3]?.v || '';
-
                 if (grupo && mensagem) {
-                    console.log(`Enviando para "${grupo}": ${mensagem}`);
                     await enviarMensagem(grupo, mensagem);
                     await esperar(800);
                 }
             }
-
             await atualizarTextoPopup('MENSAGENS ENVIADAS', false, 0, true);
-
         } catch (e) {
-            console.error('Erro ao buscar planilha:', e);
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
@@ -447,19 +358,12 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
-
             for (let i = 0; i < rows.length; i++) {
                 const key = rows[i].c[4]?.v || '';
-                if (key === MINHA_KEY) {
-                    console.log('KEY autorizada');
-                    return true;
-                }
+                if (key === MINHA_KEY) return true;
             }
-
-            console.warn('KEY nao autorizada');
             return false;
         } catch (e) {
-            console.error('Erro ao verificar a KEY:', e);
             return false;
         }
     }
@@ -472,10 +376,7 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             ultimoValorA1 = json.table.rows[0]?.c[0]?.v || '';
-            console.log(`Valor inicial: "${ultimoValorA1}"`);
-        } catch (e) {
-            console.error('Erro ao carregar valor inicial da celula A1:', e);
-        }
+        } catch (e) {}
     }
 
     async function verificarMudanca() {
@@ -484,17 +385,11 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const novoValor = json.table.rows[0]?.c[0]?.v || '';
-
-            console.log(`Monitorando: "${ultimoValorA1}", Atualizacao: "${novoValor}"`);
-
             if (novoValor !== ultimoValorA1) {
-                console.log('Acao detectada! Disparo iniciado');
                 ultimoValorA1 = novoValor;
                 await dispararMensagens();
             }
-        } catch (e) {
-            console.error('Erro ao verificar atualizacao:', e);
-        }
+        } catch (e) {}
     }
 
     (async () => {
