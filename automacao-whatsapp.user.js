@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
-// @namespace    http://github.com
-// @version      1.1
+// @namespace    https://github.com/Andr0idx/Automacoes
+// @version      1.0
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/extrator-arco.user.js
+// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/extrator-arco.user.js
 // ==/UserScript==
 
 const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=Fila';
