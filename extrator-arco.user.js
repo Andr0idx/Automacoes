@@ -48,7 +48,7 @@
             top: '0',
             left: '0',
             width: '100%',
-            backgroundColor: '#00baff', // ALTERADO para azul
+            backgroundColor: '#25D366',
             color: 'white',
             padding: '10px',
             fontSize: '16px',
@@ -89,7 +89,7 @@
         textoMarcaDagua.style.whiteSpace = 'nowrap';
         textoMarcaDagua.innerHTML = 'EXTRATOR ARCO LOGGI ATIVO!<span style="display:inline-block; width:5px;"></span>';
         textoMarcaDagua.style.color = '#FFFFFF';
-        textoMarcaDagua.style.backgroundColor = '#00baff'; // ALTERADO para azul
+        textoMarcaDagua.style.backgroundColor = '#25D366';
         textoMarcaDagua.style.padding = '4px 10px';
         textoMarcaDagua.style.borderRadius = '20px';
         textoMarcaDagua.style.fontWeight = 'bold';
@@ -134,7 +134,7 @@
         }, 5600);
     }
 
-    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') { // ALTERADO para azul
+    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#25D366') {
         if (loadingContainerAnim) return;
 
         loadingContainerAnim = document.createElement('div');
@@ -180,7 +180,7 @@
         }, 100);
     }
 
-    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') { // ALTERADO para azul
+    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#25D366') {
         if (!loadingTexto) return;
 
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
@@ -257,10 +257,8 @@
         console.groupEnd();
 
         const textoPopup = `${titulo}\n${(typeof detalhes === 'string' && detalhes.length < 80) ? detalhes : ''}`;
-        atualizarTextoPopup(textoPopup, false, 0, false, '#FFFFFF', cor === 'green' ? '#00baff' : '#d63031'); // ALTERADO para azul
+        atualizarTextoPopup(textoPopup, false, 0, false, '#FFFFFF', cor === 'green' ? '#25D366' : '#d63031');
     }
-
-    // ... restante do código inalterado ...
 
     async function esperarElemento(seletor, timeoutMs = 10000) {
         return new Promise((resolve, reject) => {
@@ -282,7 +280,452 @@
         });
     }
 
-    // ... o resto do código permanece igual, apenas as instâncias do verde '#25D366' foram alteradas para '#00baff' onde aplicável ...
+    function pegarNumeroPorLabelNaBase(label, contexto = document) {
+        const divs = [...contexto.querySelectorAll('div.MuiBox-root')];
+        for (const div of divs) {
+            const p = div.querySelector('p.MuiTypography-root.MuiTypography-body1');
+            if (p && p.textContent.trim().toLowerCase() === label.toLowerCase()) {
+                const spanNumero = div.querySelector('h4.MuiTypography-root.MuiTypography-h4 > span.MuiBox-root');
+                if (spanNumero) return extrairNumero(spanNumero.textContent);
+            }
+        }
+        return null;
+    }
+
+    function baixarCsvResultados(resultados) {
+        const cabecalho = [
+            'Base',
+            'Total de pacotes em base',
+            'Em atraso (base)',
+            'Para hoje (base)',
+            'Total de pacotes na rua',
+            'para hoje (na rua)',
+            'atrasados (na rua)',
+            'Insucessos (na rua)',
+        ];
+
+        const linhas = [cabecalho.join(';')];
+
+        for (const sigla of Object.keys(resultados)) {
+            const base = resultados[sigla]['EM BASE'] || {};
+            const rua = resultados[sigla]['EM RUA'] || {};
+
+            const linha = [
+                sigla,
+                base.totalNaBase ?? '',
+                base.comAtraso ?? '',
+                base.paraHoje ?? '',
+                rua.naRua ?? '',
+                rua.paraHoje ?? '',
+                rua.atrasados ?? '',
+                rua.insucessos ?? '',
+            ];
+
+            linhas.push(linha.join(';'));
+        }
+
+        const csvConteudo = linhas.join('\n');
+        const blob = new Blob([csvConteudo], { type: 'text/csv;charset=utf-8;' });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const dataAtual = new Date();
+        const dataFormatada = dataAtual.toISOString().slice(0,10);
+        a.download = `extracao_arco_loggi_${dataFormatada}.csv`;
+
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    async function extrairDadosNaBase(contexto = document) {
+        try {
+            await esperarElemento('div.MuiBox-root', 10000);
+        } catch (e) {
+            console.warn(e.message);
+        }
+
+        let totalNaBase = null;
+        const strong = [...contexto.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4 strong')].find(
+            (el) => el.textContent.trim() === 'Na base'
+        );
+        if (strong) {
+            const h4Pai = strong.closest('h4.MuiTypography-root.MuiTypography-h4');
+            if (h4Pai) {
+                const container = h4Pai.parentElement;
+                if (container) {
+                    const outrosH4 = [...container.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].filter(
+                        (h4) => !h4.querySelector('strong')
+                    );
+                    if (outrosH4.length > 0) totalNaBase = extrairNumero(outrosH4[0].textContent);
+                }
+            }
+        }
+
+        const paraHoje = pegarNumeroPorLabelNaBase('Para hoje', contexto);
+        const comAtraso = pegarNumeroPorLabelNaBase('Com atraso', contexto);
+        const paraAmanha = pegarNumeroPorLabelNaBase('Para amanhã', contexto);
+        const paraDepois = pegarNumeroPorLabelNaBase('Para depois', contexto);
+
+        return { totalNaBase, paraHoje, comAtraso, paraAmanha, paraDepois };
+    }
+
+    function pegarNumeroPorLabelNaRua(label, contexto = document) {
+        const h6s = [...contexto.querySelectorAll('h6.MuiTypography-root.MuiTypography-subtitle2')];
+        for (const h6 of h6s) {
+            if (h6.textContent.trim().toLowerCase() === label.toLowerCase()) {
+                let container = h6.closest('div.MuiGrid-root.MuiGrid-item') || h6.parentElement;
+                let em = container.querySelector('h2.MuiTypography-root.MuiTypography-h2 em');
+                if (!em) {
+                    let irmao = container.nextElementSibling;
+                    while (irmao && !em) {
+                        em = irmao.querySelector('h2.MuiTypography-root.MuiTypography-h2 em');
+                        irmao = irmao.nextElementSibling;
+                    }
+                }
+                if (em) return extrairNumero(em.textContent);
+            }
+        }
+        return null;
+    }
+
+    function extrairDadosNaRua(contexto = document) {
+        let naRua = null;
+        const h4Pacotes = [...contexto.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find((h4) =>
+            /pacotes/i.test(h4.textContent)
+        );
+        if (h4Pacotes) naRua = extrairNumero(h4Pacotes.textContent);
+
+        const atrasados = pegarNumeroPorLabelNaRua('Atrasados', contexto);
+        const insucessos = pegarNumeroPorLabelNaRua('Insucessos', contexto);
+        const paraHoje = pegarNumeroPorLabelNaRua('Para hoje', contexto);
+
+        return { naRua, atrasados, insucessos, paraHoje };
+    }
+
+    function isUrlValida(url) {
+        return url && /^https?:\/\//i.test(url.trim());
+    }
+
+    async function buscarDadosPlanilha() {
+        try {
+            const response = await fetch(urlPlanilha);
+            if (!response.ok) throw new Error(`Erro ao buscar a planilha: ${response.statusText}`);
+
+            const text = await response.text();
+            const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+            if (!jsonMatch || jsonMatch.length < 2) throw new Error('Resposta da planilha inválida');
+            const data = JSON.parse(jsonMatch[1]);
+            return data.table?.rows || [];
+        } catch (error) {
+            console.error('Erro ao buscar/processar planilha:', error);
+            return null;
+        }
+    }
+
+    function mostrarResumoFormatado(resultados, linhas) {
+        for (const linha of linhas) {
+            const siglaBase = linha.siglaBase;
+            const baseDados = resultados[siglaBase];
+            if (!baseDados) continue;
+            const base = baseDados['EM BASE'] || {};
+            const rua = baseDados['EM RUA'] || {};
+
+            const textoBase = `${siglaBase} - TOTAL DE PACOTES EM BASE: ${base.totalNaBase ?? '-'} | Em atraso: ${base.comAtraso ?? '-'} | Para hoje: ${base.paraHoje ?? '-'}`;
+            const textoRua = `TOTAL DE PACOTES NA RUA: ${rua.naRua ?? '-'} | Para hoje: ${rua.paraHoje ?? '-'} | Atrasados: ${rua.atrasados ?? '-'} | Insucessos: ${rua.insucessos ?? '-'}`;
+
+            logVisual(`Resultados [${siglaBase}]`, `${textoBase}\n${textoRua}`, '#25D366');
+            mostrarBanner(textoBase + '\n' + textoRua);
+        }
+    }
+
+    async function iniciarExtracaoComPermissaoUser() {
+        try {
+            criarPopupAnimadoAnim('Buscando dados na planilha...', '#FFFFFF', '#25D366');
+            const rows = await buscarDadosPlanilha();
+            if (!rows || rows.length === 0) {
+                mostrarBanner('Nenhuma entrada na planilha para extrair.');
+                await atualizarTextoPopup('Nenhuma entrada na planilha!', true, 0, false, '#FFFFFF', '#d63031');
+                return;
+            }
+
+            const todasLinhas = rows.slice(1).map((r) => ({
+                siglaBase: r.c[0]?.v?.toString().trim() || '',
+                nomeGrupo: r.c[1]?.v?.toString().trim() || '',
+                linkBase: r.c[2]?.v?.toString().trim() || '',
+                linkRua: r.c[3]?.v?.toString().trim() || '',
+            }));
+
+            const linhasFiltradas = todasLinhas.filter(linha => linha.siglaBase && linha.siglaBase.length > 0);
+
+            if (linhasFiltradas.length === 0) {
+                mostrarBanner('Nenhuma base válida encontrada para extrair.');
+                await atualizarTextoPopup('Nenhuma base válida!', true, 0, false, '#FFFFFF', '#d63031');
+                return;
+            }
+
+            if (!window.dadosBases) window.dadosBases = {};
+            const resultados = window.dadosBases;
+
+            await atualizarTextoPopup(`Iniciando extração de ${linhasFiltradas.length} bases...`, false, 500);
+
+            for (const linha of linhasFiltradas) {
+                resultados[linha.siglaBase] = resultados[linha.siglaBase] || {};
+                logVisual('Iniciando extração', `Base: ${linha.siglaBase}`, '#25D366');
+
+                async function abrirExtrairFechar(url, tipo) {
+                    if (!isUrlValida(url)) return null;
+
+                    const aba = window.open('about:blank', '_blank');
+                    if (!aba) {
+                        mostrarBanner('Bloqueio de pop-up! Permita pop-ups para continuar.');
+                        console.error('Pop-up bloqueado para', tipo, ':', url);
+                        await atualizarTextoPopup('Bloqueio de pop-ups detectado!', true, 0, false, '#FFFFFF', '#d63031');
+                        return null;
+                    }
+                    aba.location.href = url;
+
+                    return new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            window.removeEventListener('message', mensagemHandler);
+                            if (!aba.closed) {
+                                try { aba.close(); } catch {}
+                            }
+                            reject(new Error(`Timeout esperando dados da aba [${tipo}]: ${url}`));
+                        }, TIMEOUT_MS);
+
+                        function mensagemHandler(event) {
+                            if (event.source !== aba) return;
+
+                            clearTimeout(timeout);
+                            window.removeEventListener('message', mensagemHandler);
+
+                            resultados[linha.siglaBase][tipo] = event.data || null;
+                            logVisual(`Dados recebidos [${linha.siglaBase} - ${tipo}]`, JSON.stringify(event.data), '#25D366');
+
+                            if (!aba.closed) {
+                                try { aba.close(); } catch {}
+                            }
+
+                            resolve(event.data);
+                        }
+
+                        window.addEventListener('message', mensagemHandler);
+                    });
+                }
+
+                try {
+                    if (isUrlValida(linha.linkBase)) {
+                        await abrirExtrairFechar(linha.linkBase, 'EM BASE');
+                    } else {
+                        resultados[linha.siglaBase]['EM BASE'] = null;
+                    }
+
+                    if (isUrlValida(linha.linkRua)) {
+                        await abrirExtrairFechar(linha.linkRua, 'EM RUA');
+                    } else {
+                        resultados[linha.siglaBase]['EM RUA'] = null;
+                    }
+                } catch (e) {
+                    console.error(`Erro extrair dados para base ${linha.siglaBase}:`, e);
+                    if (!resultados[linha.siglaBase]['EM BASE']) resultados[linha.siglaBase]['EM BASE'] = null;
+                    if (!resultados[linha.siglaBase]['EM RUA']) resultados[linha.siglaBase]['EM RUA'] = null;
+                    await atualizarTextoPopup(`Erro na extração da base ${linha.siglaBase}`, true, 0, false, '#FFFFFF', '#d63031');
+                }
+            }
+
+            mostrarResumoFormatado(resultados, linhasFiltradas);
+            mostrarBanner('Extração completa! Veja console para detalhes.');
+            await atualizarTextoPopup('Extração completa!', true, 0, false, '#FFFFFF', '#25D366');
+
+            console.log('✅ Extração completa. Resultados:', resultados);
+            baixarCsvResultados(resultados);
+        } catch (e) {
+            console.error('Erro iniciarExtracaoComPermissaoUser:', e);
+            mostrarBanner('Erro ao iniciar extração. Veja console.');
+            await atualizarTextoPopup('Erro na extração!', true, 0, false, '#FFFFFF', '#d63031');
+        }
+    }
+
+    async function esperarPorDadosProntos(tipo, timeoutMs = 20000, intervaloMs = 500) {
+        function dadosEstaoProntos() {
+            if (tipo === 'EM BASE') {
+                const strong = document.querySelector('h4.MuiTypography-root.MuiTypography-h4 strong');
+                if (!strong || strong.textContent.trim() !== 'Na base') return false;
+
+                const h4Pai = strong.closest('h4.MuiTypography-root.MuiTypography-h4');
+                if (!h4Pai) return false;
+                const container = h4Pai.parentElement;
+                if (!container) return false;
+                const outrosH4 = [...container.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].filter(
+                    (h4) => !h4.querySelector('strong')
+                );
+                if (!outrosH4.length) return false;
+
+                const num = parseInt(outrosH4[0].textContent.replace(/\D/g, ''), 10);
+                return !isNaN(num);
+            } else if (tipo === 'EM RUA') {
+                const h4Pacotes = [...document.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find((h4) =>
+                    /pacotes/i.test(h4.textContent)
+                );
+                if (!h4Pacotes) return false;
+                const num = parseInt(h4Pacotes.textContent.replace(/\D/g, ''), 10);
+                return !isNaN(num);
+            }
+            return false;
+        }
+
+        const startTime = Date.now();
+        return new Promise((resolve, reject) => {
+            if (dadosEstaoProntos()) {
+                resolve(true);
+                return;
+            }
+
+            const interval = setInterval(() => {
+                if (dadosEstaoProntos()) {
+                    clearInterval(interval);
+                    clearTimeout(timeout);
+                    resolve(true);
+                } else if (Date.now() - startTime > timeoutMs) {
+                    clearInterval(interval);
+                    reject(new Error('Timeout esperando dados prontos'));
+                }
+            }, intervaloMs);
+
+            const timeout = setTimeout(() => {
+                clearInterval(interval);
+                reject(new Error('Timeout esperando dados prontos'));
+            }, timeoutMs);
+        });
+    }
+
+    async function extrairDadosNaPaginaAtualParaPostMessage() {
+        if (document.readyState !== 'complete') {
+            await new Promise((resolve) => {
+                window.addEventListener('load', () => resolve(), { once: true });
+            });
+        }
+
+        logVisual('🟢 Aba filha carregada', 'Esperando dados ficarem prontos...', '#25D366');
+
+        let tipo = null;
+        if (window.location.pathname.includes('/na-base/colecoes')) tipo = 'EM BASE';
+        else if (window.location.pathname.includes('/na-rua/colecoes')) tipo = 'EM RUA';
+        else {
+            tipo = 'DESCONHECIDO';
+            console.warn('Tipo de página desconhecido para extração:', window.location.href);
+            await atualizarTextoPopup('Tipo página desconhecido!', true, 0, false, '#FFFFFF', '#d63031');
+        }
+
+        try {
+            await esperarPorDadosProntos(tipo, 20000, 500);
+            logVisual('🟢 Dados prontos para extração', `Tipo: ${tipo}`, '#25D366');
+        } catch (e) {
+            console.warn('⚠️ ', e.message, '- tentando extrair de qualquer forma');
+            await atualizarTextoPopup('Timeout esperando dados, extraindo com dados incompletos!', false, 0, true, '#FFFFFF', '#d63031');
+        }
+
+        let dadosExtraidos =
+            tipo === 'EM BASE'
+                ? await extrairDadosNaBase(document)
+                : tipo === 'EM RUA'
+                ? extrairDadosNaRua(document)
+                : { erro: 'Tipo de página desconhecido para extração' };
+
+        logVisual('🟢 Dados extraídos', JSON.stringify(dadosExtraidos), '#25D366');
+
+        if (window.opener && !window.opener.closed) {
+            try {
+                window.opener.postMessage(dadosExtraidos, '*');
+                logVisual('🟢 Dados enviados', 'Dados enviados para janela mãe (opener)', '#25D366');
+            } catch (e) {
+                console.error('Erro ao enviar postMessage:', e);
+                await atualizarTextoPopup('Erro ao enviar dados para a janela mãe!', true, 0, false, '#FFFFFF', '#d63031');
+            }
+        } else {
+            console.warn('⚠️ Janela mãe fechada ou não encontrada para envio dos dados.');
+            await atualizarTextoPopup('Janela mãe fechada não enviou dados!', true, 0, false, '#FFFFFF', '#d63031');
+        }
+    }
+
+    function criarBotaoExtrair() {
+        if (document.getElementById('btnExtrairArcoLoggi')) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'btnExtrairArcoLoggi';
+        btn.textContent = 'COLETAR INFORMAÇÕES DO ARCO';
+
+        Object.assign(btn.style, {
+            position: 'fixed',
+            bottom: '60px',
+            right: '35px',
+            zIndex: 10001,
+            width: '24px',
+            height: '24px',
+            padding: '0',
+            backgroundColor: '#25D366',
+            border: 'none',
+            borderRadius: '50%',
+            fontWeight: 'bold',
+            fontSize: '0',
+            color: 'white',
+            cursor: 'pointer',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+            userSelect: 'none',
+            overflow: 'hidden',
+            transition: 'width 0.25s ease, font-size 0.25s ease, padding 0.25s ease, border-radius 0.25s ease',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        });
+
+        btn.onmouseenter = () => {
+            btn.style.width = '220px';
+            btn.style.padding = '6px 16px';
+            btn.style.fontSize = '12px';
+            btn.style.borderRadius = '20px';
+        };
+        btn.onmouseleave = () => {
+            btn.style.width = '24px';
+            btn.style.padding = '0';
+            btn.style.fontSize = '0';
+            btn.style.borderRadius = '50%';
+        };
+
+        btn.onclick = async () => {
+            btn.disabled = true;
+            btn.textContent = '⏳ Extração em andamento...';
+            btn.style.width = '220px';
+            btn.style.padding = '6px 16px';
+            btn.style.fontSize = '12px';
+            btn.style.borderRadius = '20px';
+
+            await atualizarTextoPopup('Iniciando extração...', false, 0, false, '#FFFFFF', '#25D366');
+            try {
+                await iniciarExtracaoComPermissaoUser();
+            } catch (e) {
+                console.error(e);
+                mostrarBanner('❌ Erro durante extração.');
+                await atualizarTextoPopup('Erro durante extração!', true, 0, false, '#FFFFFF', '#d63031');
+            }
+            btn.disabled = false;
+            btn.textContent = 'COLETAR INFORMAÇÕES DO ARCO';
+            btn.style.width = '24px';
+            btn.style.padding = '0';
+            btn.style.fontSize = '0';
+            btn.style.borderRadius = '50%';
+
+            fecharPopupAnimado();
+            adicionarIconeMarcaDagua();
+        };
+
+        document.body.appendChild(btn);
+    }
 
     async function main() {
         adicionarIconeMarcaDagua();
@@ -294,8 +737,8 @@
 
         criarBotaoExtrair();
 
-        console.log('%c🚀 Extrator Arco Loggi iniciado', 'color: #00baff; font-weight: bold; font-size: 16px;'); // ALTERADO para azul
-        console.log('%cClique no botão azul no canto inferior direito para iniciar a extração.', 'color: #666; font-size: 13px;'); // Modificado texto para azul
+        console.log('%c🚀 Extrator Arco Loggi iniciado', 'color: #25D366; font-weight: bold; font-size: 16px;');
+        console.log('%cClique no botão verde no canto inferior direito para iniciar a extração.', 'color: #666; font-size: 13px;');
     }
 
     window.ExtratorArcoLoggi = {
