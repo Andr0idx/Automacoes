@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Extrator ARCO
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.0
+// @version      1.1
 // @description  Extrai dados Na base e Na rua do Arco Loggi com melhorias visuais e animações inspiradas no ESTÁGISCRAVO. Abrindo abas sequencialmente, coleta dados via postMessage, botão inicia extração e log visual aprimorado.
-// @author       Gabriel Guedes Araujo da Sila
+// @author       Gabriel Guedes Araujo da Silva
 // @match        https://arco.loggi.com/*/na-base/colecoes
 // @match        https://arco.loggi.com/*/na-rua/colecoes
 // @grant        none
@@ -20,7 +20,6 @@
     const TIMEOUT_MS = 120000;
 
     let iconeMarcaDagua = null;
-    let textoMarcaDagua = null;
     let loadingContainerAnim = null;
     let loadingTexto = null;
     let fecharComCliqueHandler = null;
@@ -40,7 +39,6 @@
         const id = '__arco_loggi_banner__';
         const bannerExistente = document.getElementById(id);
         if (bannerExistente) bannerExistente.remove();
-
         const banner = document.createElement('div');
         banner.id = id;
         Object.assign(banner.style, {
@@ -65,102 +63,102 @@
 
     function adicionarIconeMarcaDagua() {
         if (iconeMarcaDagua) return;
-
         const container = document.createElement('div');
         container.style.position = 'fixed';
         container.style.bottom = '10px';
-        container.style.right = '25px';
-        container.style.width = '280px';
+        container.style.right = '20px';
+        container.style.width = '40px';
         container.style.height = '40px';
-        container.style.overflow = 'hidden';
         container.style.zIndex = '9999';
         container.style.userSelect = 'none';
-        container.style.pointerEvents = 'none';
-
-        const textoContainer = document.createElement('div');
-        textoContainer.style.position = 'absolute';
-        textoContainer.style.top = '55%';
-        textoContainer.style.right = '30px';
-        textoContainer.style.transform = 'translateY(-50%)';
-        textoContainer.style.overflow = 'hidden';
-        textoContainer.style.zIndex = '1';
-
-        textoMarcaDagua = document.createElement('div');
-        textoMarcaDagua.style.whiteSpace = 'nowrap';
-        textoMarcaDagua.innerHTML = 'EXTRATOR ARCO LOGGI ATIVO!<span style="display:inline-block; width:5px;"></span>';
-        textoMarcaDagua.style.color = '#FFFFFF';
-        textoMarcaDagua.style.backgroundColor = '#00baff';
-        textoMarcaDagua.style.padding = '4px 10px';
-        textoMarcaDagua.style.borderRadius = '20px';
-        textoMarcaDagua.style.fontWeight = 'bold';
-        textoMarcaDagua.style.fontSize = '16px';
-        textoMarcaDagua.style.opacity = '1';
-        textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
-        textoMarcaDagua.style.transition = 'transform 1s ease-in-out, opacity 1s ease';
-        textoContainer.appendChild(textoMarcaDagua);
-
-        const iconeContainer = document.createElement('div');
-        iconeContainer.style.position = 'absolute';
-        iconeContainer.style.top = '50%';
-        iconeContainer.style.right = '0';
-        iconeContainer.style.transform = 'translateY(-50%)';
-        iconeContainer.style.zIndex = '2';
-
-        iconeMarcaDagua = document.createElement('div');
+        container.style.pointerEvents = 'auto';
+        iconeMarcaDagua = document.createElement('button');
         iconeMarcaDagua.textContent = '🤖';
         iconeMarcaDagua.style.fontSize = '30px';
         iconeMarcaDagua.style.opacity = '1';
         iconeMarcaDagua.style.transition = 'opacity 1s ease';
-        iconeContainer.appendChild(iconeMarcaDagua);
-
-        container.appendChild(textoContainer);
-        container.appendChild(iconeContainer);
+        iconeMarcaDagua.style.cursor = 'pointer';
+        iconeMarcaDagua.style.border = 'none';
+        iconeMarcaDagua.style.background = 'transparent';
+        iconeMarcaDagua.style.padding = '0';
+        iconeMarcaDagua.style.userSelect = 'none';
+        let popupTooltipTimeout = null;
+        const TEMPO_POPUP_VISAO_MS = 20000;
+        function mostrarPopupTooltip() {
+            if (popupTooltipTimeout) {
+                clearTimeout(popupTooltipTimeout);
+                popupTooltipTimeout = null;
+            }
+            criarPopupAnimadoAnim('INICIAR EXTRAÇÃO DE DADOS', '#FFFFFF', '#00baff');
+            iconeMarcaDagua.style.opacity = '1';
+            popupTooltipTimeout = setTimeout(() => {
+                fecharPopupAnimado();
+                iconeMarcaDagua.style.opacity = '0.15';
+                popupTooltipTimeout = null;
+            }, TEMPO_POPUP_VISAO_MS);
+        }
+        iconeMarcaDagua.onmouseenter = () => {
+            mostrarPopupTooltip();
+        };
+        iconeMarcaDagua.onclick = async () => {
+            if (iconeMarcaDagua.disabled) return;
+            iconeMarcaDagua.disabled = true;
+            await atualizarTextoPopup('EXTRAÇÃO DE DADOS INICIADA!', false, 0, false, '#FFFFFF', '#00baff');
+            await esperar(1500);
+            try {
+                await iniciarExtracaoComPermissaoUser();
+            } catch (e) {
+                console.error(e);
+                mostrarBanner('Erro durante extração.');
+            } finally {
+                iconeMarcaDagua.disabled = false;
+            }
+        };
+        container.appendChild(iconeMarcaDagua);
         document.body.appendChild(container);
-
+        criarPopupAnimadoAnim('EXTRATOR ARCO LOGGI ATIVO!', '#FFFFFF', '#00baff');
         setTimeout(() => {
-            textoMarcaDagua.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
-        }, 100);
-
-        setTimeout(() => {
-            textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
-        }, 4000);
-
-        setTimeout(() => {
+            fecharPopupAnimado();
             iconeMarcaDagua.style.opacity = '0.15';
-        }, 5200);
-
-        setTimeout(() => {
-            textoMarcaDagua.style.opacity = '0';
-        }, 5600);
+        }, TEMPO_POPUP_VISAO_MS);
     }
 
     function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
-        if (loadingContainerAnim) return;
-
+        if (loadingContainerAnim) {
+            loadingContainerAnim.remove();
+            loadingContainerAnim = null;
+            loadingTexto = null;
+        }
+        if (iconeMarcaDagua) {
+            iconeMarcaDagua.style.position = 'fixed';
+            iconeMarcaDagua.style.zIndex = '10000';
+            iconeMarcaDagua.style.pointerEvents = 'auto';
+        }
         loadingContainerAnim = document.createElement('div');
         loadingContainerAnim.style.position = 'fixed';
         loadingContainerAnim.style.bottom = '8px';
-        loadingContainerAnim.style.right = '20px';
+        loadingContainerAnim.style.right = '45px';
         loadingContainerAnim.style.width = '500px';
         loadingContainerAnim.style.height = '40px';
         loadingContainerAnim.style.overflow = 'hidden';
         loadingContainerAnim.style.zIndex = '9998';
         loadingContainerAnim.style.userSelect = 'none';
         loadingContainerAnim.style.pointerEvents = 'none';
-
+        loadingContainerAnim.style.background = 'transparent';
+        loadingContainerAnim.style.boxSizing = 'border-box';
         const textoContainer = document.createElement('div');
         textoContainer.style.position = 'absolute';
         textoContainer.style.top = '50%';
-        textoContainer.style.right = '30px';
+        textoContainer.style.right = '0';
         textoContainer.style.transform = 'translateY(-50%)';
         textoContainer.style.overflow = 'hidden';
         textoContainer.style.zIndex = '1';
-
+        textoContainer.style.whiteSpace = 'nowrap';
         loadingTexto = document.createElement('div');
         loadingTexto.innerHTML = textoInicial + '<span style="display:inline-block; width:10px;"></span>';
         loadingTexto.style.color = corTexto;
         loadingTexto.style.backgroundColor = corFundo;
-        loadingTexto.style.padding = '6px 12px';
+        loadingTexto.style.padding = '2px 6px';
         loadingTexto.style.borderRadius = '20px';
         loadingTexto.style.fontWeight = 'bold';
         loadingTexto.style.fontSize = '14px';
@@ -168,111 +166,93 @@
         loadingTexto.style.opacity = '1';
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
-
         textoContainer.appendChild(loadingTexto);
         loadingContainerAnim.appendChild(textoContainer);
         document.body.appendChild(loadingContainerAnim);
-
         setTimeout(() => {
             loadingTexto.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
             loadingTexto.style.opacity = '1';
-            if (iconeMarcaDagua) iconeMarcaDagua.style.opacity = '1';
+            if (iconeMarcaDagua) {
+                iconeMarcaDagua.style.opacity = '1';
+            }
         }, 100);
+        setTimeout(() => {
+            fecharPopupAnimado();
+        }, 4000);
     }
 
     async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
-        if (!loadingTexto) return;
-
-        loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
-        loadingTexto.style.opacity = '0';
-
-        if (iconeMarcaDagua) {
-            iconeMarcaDagua.style.transition = 'opacity 1s ease';
-            iconeMarcaDagua.style.opacity = '0.15';
-        }
-
-        await esperar(290);
-
-        if (loadingContainerAnim) {
-            loadingContainerAnim.remove();
-            loadingContainerAnim = null;
-            loadingTexto = null;
-        }
-
-        if (delayAntesEntrada > 0) {
-            await esperar(delayAntesEntrada);
-        }
-
-        if (!fecharDepois && !fecharDepoisClicar) {
+        if (!loadingTexto && !loadingContainerAnim) {
+            if (delayAntesEntrada > 0) {
+                await esperar(delayAntesEntrada);
+            }
+            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+        } else if (loadingTexto) {
+            loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+            loadingTexto.style.opacity = '0';
+            if (iconeMarcaDagua) {
+                iconeMarcaDagua.style.transition = 'opacity 1s ease';
+                iconeMarcaDagua.style.opacity = '0.15';
+            }
+            await esperar(1000);
+            if (loadingContainerAnim) {
+                loadingContainerAnim.remove();
+                loadingContainerAnim = null;
+                loadingTexto = null;
+            }
+            if (delayAntesEntrada > 0) {
+                await esperar(delayAntesEntrada);
+            }
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
         }
-
         if (fecharDepois) {
-            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
             setTimeout(() => {
                 fecharPopupAnimado();
             }, 4000);
         }
-
         if (fecharDepoisClicar) {
-            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-
-            fecharComCliqueHandler = () => {
+            fecharComCliqueHandler = (event) => {
+                if (!document.hasFocus()) return;
                 fecharPopupAnimado();
-                document.removeEventListener('click', fecharComCliqueHandler);
+                document.removeEventListener('click', fecharComCliqueHandler, { capture: true });
                 fecharComCliqueHandler = null;
             };
-            document.addEventListener('click', fecharComCliqueHandler);
+            document.addEventListener('click', fecharComCliqueHandler, { capture: true });
         }
     }
 
     function fecharPopupAnimado() {
         if (!loadingTexto || !loadingContainerAnim) return;
-
+        loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
-
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
-
         setTimeout(() => {
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
                 loadingTexto = null;
             }
-
             if (fecharComCliqueHandler) {
-                document.removeEventListener('click', fecharComCliqueHandler);
+                document.removeEventListener('click', fecharComCliqueHandler, { capture: true });
                 fecharComCliqueHandler = null;
             }
-        }, 600);
-    }
-
-    function logVisual(titulo, detalhes, cor = 'green') {
-        console.groupCollapsed(`%c${titulo}`, `color: ${cor}; font-weight: bold; font-size: 14px`);
-        console.log(detalhes);
-        console.groupEnd();
-
-        const textoPopup = `${titulo}\n${(typeof detalhes === 'string' && detalhes.length < 80) ? detalhes : ''}`;
-        atualizarTextoPopup(textoPopup, false, 0, false, '#FFFFFF', cor === 'green' ? '#00baff' : '#d63031');
+        }, 1200);
     }
 
     async function esperarElemento(seletor, timeoutMs = 10000) {
         return new Promise((resolve, reject) => {
             if (document.querySelector(seletor)) return resolve(true);
-
             const observer = new MutationObserver(() => {
                 if (document.querySelector(seletor)) {
                     observer.disconnect();
                     resolve(true);
                 }
             });
-
             observer.observe(document, { childList: true, subtree: true });
-
             setTimeout(() => {
                 observer.disconnect();
                 reject(new Error(`Timeout esperando seletor: ${seletor}`));
@@ -303,13 +283,10 @@
             'atrasados (na rua)',
             'Insucessos (na rua)',
         ];
-
         const linhas = [cabecalho.join(';')];
-
         for (const sigla of Object.keys(resultados)) {
             const base = resultados[sigla]['EM BASE'] || {};
             const rua = resultados[sigla]['EM RUA'] || {};
-
             const linha = [
                 sigla,
                 base.totalNaBase ?? '',
@@ -320,21 +297,16 @@
                 rua.atrasados ?? '',
                 rua.insucessos ?? '',
             ];
-
             linhas.push(linha.join(';'));
         }
-
         const csvConteudo = linhas.join('\n');
         const blob = new Blob([csvConteudo], { type: 'text/csv;charset=utf-8;' });
-
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-
         const dataAtual = new Date();
         const dataFormatada = dataAtual.toISOString().slice(0,10);
         a.download = `extracao_arco_loggi_${dataFormatada}.csv`;
-
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -344,32 +316,26 @@
     async function extrairDadosNaBase(contexto = document) {
         try {
             await esperarElemento('div.MuiBox-root', 10000);
-        } catch (e) {
-            console.warn(e.message);
-        }
-
+        } catch {}
         let totalNaBase = null;
         const strong = [...contexto.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4 strong')].find(
-            (el) => el.textContent.trim() === 'Na base'
+            el => el.textContent.trim() === 'Na base'
         );
         if (strong) {
             const h4Pai = strong.closest('h4.MuiTypography-root.MuiTypography-h4');
             if (h4Pai) {
                 const container = h4Pai.parentElement;
                 if (container) {
-                    const outrosH4 = [...container.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].filter(
-                        (h4) => !h4.querySelector('strong')
-                    );
+                    const outrosH4 = [...container.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')]
+                        .filter(h4 => !h4.querySelector('strong'));
                     if (outrosH4.length > 0) totalNaBase = extrairNumero(outrosH4[0].textContent);
                 }
             }
         }
-
         const paraHoje = pegarNumeroPorLabelNaBase('Para hoje', contexto);
         const comAtraso = pegarNumeroPorLabelNaBase('Com atraso', contexto);
         const paraAmanha = pegarNumeroPorLabelNaBase('Para amanhã', contexto);
         const paraDepois = pegarNumeroPorLabelNaBase('Para depois', contexto);
-
         return { totalNaBase, paraHoje, comAtraso, paraAmanha, paraDepois };
     }
 
@@ -394,15 +360,13 @@
 
     function extrairDadosNaRua(contexto = document) {
         let naRua = null;
-        const h4Pacotes = [...contexto.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find((h4) =>
+        const h4Pacotes = [...contexto.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find(h4 =>
             /pacotes/i.test(h4.textContent)
         );
         if (h4Pacotes) naRua = extrairNumero(h4Pacotes.textContent);
-
         const atrasados = pegarNumeroPorLabelNaRua('Atrasados', contexto);
         const insucessos = pegarNumeroPorLabelNaRua('Insucessos', contexto);
         const paraHoje = pegarNumeroPorLabelNaRua('Para hoje', contexto);
-
         return { naRua, atrasados, insucessos, paraHoje };
     }
 
@@ -414,80 +378,37 @@
         try {
             const response = await fetch(urlPlanilha);
             if (!response.ok) throw new Error(`Erro ao buscar a planilha: ${response.statusText}`);
-
             const text = await response.text();
             const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
             if (!jsonMatch || jsonMatch.length < 2) throw new Error('Resposta da planilha inválida');
             const data = JSON.parse(jsonMatch[1]);
             return data.table?.rows || [];
-        } catch (error) {
-            console.error('Erro ao buscar/processar planilha:', error);
+        } catch {
             return null;
-        }
-    }
-
-    function mostrarResumoFormatado(resultados, linhas) {
-        for (const linha of linhas) {
-            const siglaBase = linha.siglaBase;
-            const baseDados = resultados[siglaBase];
-            if (!baseDados) continue;
-            const base = baseDados['EM BASE'] || {};
-            const rua = baseDados['EM RUA'] || {};
-
-            const textoBase = `${siglaBase} - TOTAL DE PACOTES EM BASE: ${base.totalNaBase ?? '-'} | Em atraso: ${base.comAtraso ?? '-'} | Para hoje: ${base.paraHoje ?? '-'}`;
-            const textoRua = `TOTAL DE PACOTES NA RUA: ${rua.naRua ?? '-'} | Para hoje: ${rua.paraHoje ?? '-'} | Atrasados: ${rua.atrasados ?? '-'} | Insucessos: ${rua.insucessos ?? '-'}`;
-
-            logVisual(`Resultados [${siglaBase}]`, `${textoBase}\n${textoRua}`, '#00baff');
-            mostrarBanner(textoBase + '\n' + textoRua);
         }
     }
 
     async function iniciarExtracaoComPermissaoUser() {
         try {
-            criarPopupAnimadoAnim('Buscando dados na planilha...', '#FFFFFF', '#00baff');
             const rows = await buscarDadosPlanilha();
-            if (!rows || rows.length === 0) {
-                mostrarBanner('Nenhuma entrada na planilha para extrair.');
-                await atualizarTextoPopup('Nenhuma entrada na planilha!', true, 0, false, '#FFFFFF', '#d63031');
-                return;
-            }
-
+            if (!rows || rows.length === 0) return;
             const todasLinhas = rows.slice(1).map((r) => ({
                 siglaBase: r.c[0]?.v?.toString().trim() || '',
                 nomeGrupo: r.c[1]?.v?.toString().trim() || '',
                 linkBase: r.c[2]?.v?.toString().trim() || '',
                 linkRua: r.c[3]?.v?.toString().trim() || '',
             }));
-
             const linhasFiltradas = todasLinhas.filter(linha => linha.siglaBase && linha.siglaBase.length > 0);
-
-            if (linhasFiltradas.length === 0) {
-                mostrarBanner('Nenhuma base válida encontrada para extrair.');
-                await atualizarTextoPopup('Nenhuma base válida!', true, 0, false, '#FFFFFF', '#d63031');
-                return;
-            }
-
+            if (linhasFiltradas.length === 0) return;
             if (!window.dadosBases) window.dadosBases = {};
             const resultados = window.dadosBases;
-
-            await atualizarTextoPopup(`Iniciando extração de ${linhasFiltradas.length} bases...`, false, 500);
-
             for (const linha of linhasFiltradas) {
                 resultados[linha.siglaBase] = resultados[linha.siglaBase] || {};
-                logVisual('Iniciando extração', `Base: ${linha.siglaBase}`, '#00baff');
-
                 async function abrirExtrairFechar(url, tipo) {
                     if (!isUrlValida(url)) return null;
-
                     const aba = window.open('about:blank', '_blank');
-                    if (!aba) {
-                        mostrarBanner('Bloqueio de pop-up! Permita pop-ups para continuar.');
-                        console.error('Pop-up bloqueado para', tipo, ':', url);
-                        await atualizarTextoPopup('Bloqueio de pop-ups detectado!', true, 0, false, '#FFFFFF', '#d63031');
-                        return null;
-                    }
+                    if (!aba) return null;
                     aba.location.href = url;
-
                     return new Promise((resolve, reject) => {
                         const timeout = setTimeout(() => {
                             window.removeEventListener('message', mensagemHandler);
@@ -496,57 +417,38 @@
                             }
                             reject(new Error(`Timeout esperando dados da aba [${tipo}]: ${url}`));
                         }, TIMEOUT_MS);
-
                         function mensagemHandler(event) {
                             if (event.source !== aba) return;
-
                             clearTimeout(timeout);
                             window.removeEventListener('message', mensagemHandler);
-
                             resultados[linha.siglaBase][tipo] = event.data || null;
-                            logVisual(`Dados recebidos [${linha.siglaBase} - ${tipo}]`, JSON.stringify(event.data), '#00baff');
-
                             if (!aba.closed) {
                                 try { aba.close(); } catch {}
                             }
-
                             resolve(event.data);
                         }
-
                         window.addEventListener('message', mensagemHandler);
                     });
                 }
-
                 try {
                     if (isUrlValida(linha.linkBase)) {
                         await abrirExtrairFechar(linha.linkBase, 'EM BASE');
                     } else {
                         resultados[linha.siglaBase]['EM BASE'] = null;
                     }
-
                     if (isUrlValida(linha.linkRua)) {
                         await abrirExtrairFechar(linha.linkRua, 'EM RUA');
                     } else {
                         resultados[linha.siglaBase]['EM RUA'] = null;
                     }
-                } catch (e) {
-                    console.error(`Erro extrair dados para base ${linha.siglaBase}:`, e);
-                    if (!resultados[linha.siglaBase]['EM BASE']) resultados[linha.siglaBase]['EM BASE'] = null;
-                    if (!resultados[linha.siglaBase]['EM RUA']) resultados[linha.siglaBase]['EM RUA'] = null;
-                    await atualizarTextoPopup(`Erro na extração da base ${linha.siglaBase}`, true, 0, false, '#FFFFFF', '#d63031');
+                } catch {
+                    resultados[linha.siglaBase]['EM BASE'] = resultados[linha.siglaBase]['EM BASE'] || null;
+                    resultados[linha.siglaBase]['EM RUA'] = resultados[linha.siglaBase]['EM RUA'] || null;
                 }
             }
-
-            mostrarResumoFormatado(resultados, linhasFiltradas);
-            mostrarBanner('Extração completa! Veja console para detalhes.');
-            await atualizarTextoPopup('Extração completa!', true, 0, false, '#FFFFFF', '#00baff');
-
-            console.log('✅ Extração completa. Resultados:', resultados);
+            await atualizarTextoPopup('EXTRACAO FINALIZADA, CSV DISPONIVEL', false, 0, true, '#FFFFFF', '#00baff');
             baixarCsvResultados(resultados);
-        } catch (e) {
-            console.error('Erro iniciarExtracaoComPermissaoUser:', e);
-            mostrarBanner('Erro ao iniciar extração. Veja console.');
-            await atualizarTextoPopup('Erro na extração!', true, 0, false, '#FFFFFF', '#d63031');
+        } catch {
         }
     }
 
@@ -555,7 +457,6 @@
             if (tipo === 'EM BASE') {
                 const strong = document.querySelector('h4.MuiTypography-root.MuiTypography-h4 strong');
                 if (!strong || strong.textContent.trim() !== 'Na base') return false;
-
                 const h4Pai = strong.closest('h4.MuiTypography-root.MuiTypography-h4');
                 if (!h4Pai) return false;
                 const container = h4Pai.parentElement;
@@ -564,12 +465,11 @@
                     (h4) => !h4.querySelector('strong')
                 );
                 if (!outrosH4.length) return false;
-
                 const num = parseInt(outrosH4[0].textContent.replace(/\D/g, ''), 10);
                 return !isNaN(num);
             } else if (tipo === 'EM RUA') {
-                const h4Pacotes = [...document.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find((h4) =>
-                    /pacotes/i.test(h4.textContent)
+                const h4Pacotes = [...document.querySelectorAll('h4.MuiTypography-root.MuiTypography-h4')].find(
+                    (h4) => /pacotes/i.test(h4.textContent)
                 );
                 if (!h4Pacotes) return false;
                 const num = parseInt(h4Pacotes.textContent.replace(/\D/g, ''), 10);
@@ -577,14 +477,12 @@
             }
             return false;
         }
-
         const startTime = Date.now();
         return new Promise((resolve, reject) => {
             if (dadosEstaoProntos()) {
                 resolve(true);
                 return;
             }
-
             const interval = setInterval(() => {
                 if (dadosEstaoProntos()) {
                     clearInterval(interval);
@@ -595,7 +493,6 @@
                     reject(new Error('Timeout esperando dados prontos'));
                 }
             }, intervaloMs);
-
             const timeout = setTimeout(() => {
                 clearInterval(interval);
                 reject(new Error('Timeout esperando dados prontos'));
@@ -609,136 +506,34 @@
                 window.addEventListener('load', () => resolve(), { once: true });
             });
         }
-
-        logVisual('🟢 Aba filha carregada', 'Esperando dados ficarem prontos...', '#00baff');
-
         let tipo = null;
         if (window.location.pathname.includes('/na-base/colecoes')) tipo = 'EM BASE';
         else if (window.location.pathname.includes('/na-rua/colecoes')) tipo = 'EM RUA';
         else {
             tipo = 'DESCONHECIDO';
-            console.warn('Tipo de página desconhecido para extração:', window.location.href);
-            await atualizarTextoPopup('Tipo página desconhecido!', true, 0, false, '#FFFFFF', '#d63031');
         }
-
         try {
             await esperarPorDadosProntos(tipo, 20000, 500);
-            logVisual('🟢 Dados prontos para extração', `Tipo: ${tipo}`, '#00baff');
-        } catch (e) {
-            console.warn('⚠️ ', e.message, '- tentando extrair de qualquer forma');
-            await atualizarTextoPopup('Timeout esperando dados, extraindo com dados incompletos!', false, 0, true, '#FFFFFF', '#d63031');
-        }
-
+        } catch {}
         let dadosExtraidos =
             tipo === 'EM BASE'
                 ? await extrairDadosNaBase(document)
                 : tipo === 'EM RUA'
                 ? extrairDadosNaRua(document)
-                : { erro: 'Tipo de página desconhecido para extração' };
-
-        logVisual('🟢 Dados extraídos', JSON.stringify(dadosExtraidos), '#00baff');
-
+                : { erro: 'Tipo de página desconhecido para extracao' };
         if (window.opener && !window.opener.closed) {
             try {
                 window.opener.postMessage(dadosExtraidos, '*');
-                logVisual('🟢 Dados enviados', 'Dados enviados para janela mãe (opener)', '#00baff');
-            } catch (e) {
-                console.error('Erro ao enviar postMessage:', e);
-                await atualizarTextoPopup('Erro ao enviar dados para a janela mãe!', true, 0, false, '#FFFFFF', '#d63031');
-            }
-        } else {
-            console.warn('⚠️ Janela mãe fechada ou não encontrada para envio dos dados.');
-            await atualizarTextoPopup('Janela mãe fechada não enviou dados!', true, 0, false, '#FFFFFF', '#d63031');
+            } catch {}
         }
     }
 
-    function criarBotaoExtrair() {
-        if (document.getElementById('btnExtrairArcoLoggi')) return;
-
-        const btn = document.createElement('button');
-        btn.id = 'btnExtrairArcoLoggi';
-        btn.textContent = 'COLETAR INFORMAÇÕES DO ARCO';
-
-        Object.assign(btn.style, {
-            position: 'fixed',
-            bottom: '60px',
-            right: '35px',
-            zIndex: 10001,
-            width: '24px',
-            height: '24px',
-            padding: '0',
-            backgroundColor: '#00baff',
-            border: 'none',
-            borderRadius: '50%',
-            fontWeight: 'bold',
-            fontSize: '0',
-            color: 'white',
-            cursor: 'pointer',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-            userSelect: 'none',
-            overflow: 'hidden',
-            transition: 'width 0.25s ease, font-size 0.25s ease, padding 0.25s ease, border-radius 0.25s ease',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-        });
-
-        btn.onmouseenter = () => {
-            btn.style.width = '220px';
-            btn.style.padding = '6px 16px';
-            btn.style.fontSize = '12px';
-            btn.style.borderRadius = '20px';
-        };
-        btn.onmouseleave = () => {
-            btn.style.width = '24px';
-            btn.style.padding = '0';
-            btn.style.fontSize = '0';
-            btn.style.borderRadius = '50%';
-        };
-
-        btn.onclick = async () => {
-            btn.disabled = true;
-            btn.textContent = '⏳ Extração em andamento...';
-            btn.style.width = '220px';
-            btn.style.padding = '6px 16px';
-            btn.style.fontSize = '12px';
-            btn.style.borderRadius = '20px';
-
-            await atualizarTextoPopup('Iniciando extração...', false, 0, false, '#FFFFFF', '#00baff');
-            try {
-                await iniciarExtracaoComPermissaoUser();
-            } catch (e) {
-                console.error(e);
-                mostrarBanner('❌ Erro durante extração.');
-                await atualizarTextoPopup('Erro durante extração!', true, 0, false, '#FFFFFF', '#d63031');
-            }
-            btn.disabled = false;
-            btn.textContent = 'COLETAR INFORMAÇÕES DO ARCO';
-            btn.style.width = '24px';
-            btn.style.padding = '0';
-            btn.style.fontSize = '0';
-            btn.style.borderRadius = '50%';
-
-            fecharPopupAnimado();
-            adicionarIconeMarcaDagua();
-        };
-
-        document.body.appendChild(btn);
-    }
-
     async function main() {
-        adicionarIconeMarcaDagua();
-
         if (window.opener && !window.opener.closed) {
             await extrairDadosNaPaginaAtualParaPostMessage();
             return;
         }
-
-        criarBotaoExtrair();
-
-        console.log('%c🚀 Extrator Arco Loggi iniciado', 'color: #00baff; font-weight: bold; font-size: 16px;');
-        console.log('%cClique no botão azul no canto inferior direito para iniciar a extração.', 'color: #666; font-size: 13px;');
+        adicionarIconeMarcaDagua();
     }
 
     window.ExtratorArcoLoggi = {
