@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.1
+// @version      1.2
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
@@ -139,6 +139,16 @@ const MINHA_KEY = getMinhaKey();
 
     function esperar(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    async function esperarElemento(selector, timeout = 15000) {
+        const inicio = Date.now();
+        while (Date.now() - inicio < timeout) {
+            const el = document.querySelector(selector);
+            if (el) return el;
+            await esperar(200);
+        }
+        throw new Error(`Elemento ${selector} não encontrado após ${timeout}ms`);
+    }
+
     function cliqueReal(elemento) {
         ['mouseover', 'mousedown', 'mouseup', 'click'].forEach(eventoTipo => {
             const evento = new MouseEvent(eventoTipo, { view: window, bubbles: true, cancelable: true });
@@ -146,37 +156,38 @@ const MINHA_KEY = getMinhaKey();
         });
     }
 
-    async function buscarGrupoPorPesquisa(nomeGrupo) {
-        const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-        if (!barraPesquisa) {
-            console.error('Barra de pesquisa não encontrada!');
-            return null;
-        }
-
-        barraPesquisa.focus();
+    function setContentEditableText(element, text) {
+        element.focus();
         document.execCommand('selectAll', false, null);
         document.execCommand('delete', false, null);
-        await esperar(500);
+        element.innerText = text;
+        const event = new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: text,
+            inputType: 'insertText',
+        });
+        element.dispatchEvent(event);
+    }
 
-        document.execCommand('insertText', false, nomeGrupo);
-        await esperar(1500);
-
-        document.execCommand('delete', false, null);
-        await esperar(800);
-
-        document.execCommand('insertText', false, nomeGrupo.slice(-1));
-        await esperar(2000);
-
-        const resultados = Array.from(document.querySelectorAll('span[title]'));
-        const grupoElemento = resultados.find(el => el.title.toLowerCase() === nomeGrupo.toLowerCase()) || null;
-
-        if (grupoElemento) {
-            console.log(`Encontrado grupo "${nomeGrupo}". Abrindo...`);
-            cliqueReal(grupoElemento);
-            await esperar(3000);
-            return grupoElemento;
-        } else {
-            console.warn(`Grupo "${nomeGrupo}" não encontrado.`);
+    async function buscarGrupoPorPesquisa(nomeGrupo) {
+        try {
+            const barraPesquisa = await esperarElemento('div[contenteditable="true"][data-tab="3"]');
+            setContentEditableText(barraPesquisa, nomeGrupo);
+            await esperar(1000);
+            const resultados = Array.from(document.querySelectorAll('span[title]'));
+            const grupoElemento = resultados.find(el => el.title.toLowerCase() === nomeGrupo.toLowerCase()) || null;
+            if (grupoElemento) {
+                console.log(`Encontrado grupo "${nomeGrupo}". Abrindo...`);
+                cliqueReal(grupoElemento);
+                await esperar(3000);
+                return grupoElemento;
+            } else {
+                console.warn(`Grupo "${nomeGrupo}" não encontrado.`);
+                return null;
+            }
+        } catch (e) {
+            console.error('Erro ao buscar grupo por pesquisa:', e);
             return null;
         }
     }
@@ -192,45 +203,50 @@ const MINHA_KEY = getMinhaKey();
             cancelable: true
         });
         const input = document.querySelector('[contenteditable="true"][data-tab="10"]');
-        input.dispatchEvent(keyboardEvent);
+        if (input) {
+            input.dispatchEvent(keyboardEvent);
+        }
+    }
+
+    function inserirTextoNaCaixa(caixa, texto) {
+        caixa.focus();
+        caixa.innerText = texto;
+        const event = new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: texto,
+            inputType: 'insertText',
+        });
+        caixa.dispatchEvent(event);
     }
 
     async function enviarMensagem(nomeGrupo, mensagem) {
-        const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
-        if (!grupoElemento) {
-            console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
-            return;
-        }
-
-        const caixa = document.querySelector('[contenteditable="true"][data-tab="10"]');
-        if (!caixa) {
-            console.error('Caixa de mensagem não encontrada!');
-            return;
-        }
-
-        caixa.focus();
-
-        for (const linha of mensagem.split('\n')) {
-            document.execCommand('insertText', false, linha);
-            inserirQuebraDeLinha();
-            await esperar(100);
-        }
-
-        await esperar(500);
-
-        const botao = document.querySelector('span[data-icon="send"]');
-        if (botao) {
-            botao.click();
-            console.log(`Mensagem enviada para: ${nomeGrupo}`);
-        } else {
-            console.warn('Botão de enviar não encontrado!');
-        }
-
-        const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-        if (barraPesquisa) {
-            barraPesquisa.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
+        try {
+            const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
+            if (!grupoElemento) {
+                console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
+                return;
+            }
+            const caixa = await esperarElemento('[contenteditable="true"][data-tab="10"]');
+            if (!caixa) {
+                console.error('Caixa de mensagem não encontrada!');
+                return;
+            }
+            inserirTextoNaCaixa(caixa, mensagem);
+            await esperar(500);
+            const botao = document.querySelector('span[data-icon="send"]');
+            if (botao) {
+                botao.click();
+                console.log(`Mensagem enviada para: ${nomeGrupo}`);
+            } else {
+                console.warn('Botão de enviar não encontrado!');
+            }
+            const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
+            if (barraPesquisa) {
+                setContentEditableText(barraPesquisa, '');
+            }
+        } catch (e) {
+            console.error('Erro em enviarMensagem:', e);
         }
     }
 
@@ -240,7 +256,6 @@ const MINHA_KEY = getMinhaKey();
 
     function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (loadingContainerAnim) return;
-
         loadingContainerAnim = document.createElement('div');
         loadingContainerAnim.style.position = 'fixed';
         loadingContainerAnim.style.bottom = '8px';
@@ -251,7 +266,6 @@ const MINHA_KEY = getMinhaKey();
         loadingContainerAnim.style.zIndex = '9998';
         loadingContainerAnim.style.userSelect = 'none';
         loadingContainerAnim.style.pointerEvents = 'none';
-
         const textoContainer = document.createElement('div');
         textoContainer.style.position = 'absolute';
         textoContainer.style.top = '50%';
@@ -259,7 +273,6 @@ const MINHA_KEY = getMinhaKey();
         textoContainer.style.transform = 'translateY(-50%)';
         textoContainer.style.overflow = 'hidden';
         textoContainer.style.zIndex = '1';
-
         loadingTexto = document.createElement('div');
         loadingTexto.innerHTML = textoInicial + '<span style="display:inline-block; width:10px;"></span>';
         loadingTexto.style.color = corTexto;
@@ -272,11 +285,9 @@ const MINHA_KEY = getMinhaKey();
         loadingTexto.style.opacity = '1';
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
-
         textoContainer.appendChild(loadingTexto);
         loadingContainerAnim.appendChild(textoContainer);
         document.body.appendChild(loadingContainerAnim);
-
         setTimeout(() => {
             loadingTexto.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
             loadingTexto.style.opacity = '1';
@@ -289,41 +300,32 @@ const MINHA_KEY = getMinhaKey();
 
     async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (!loadingTexto) return;
-
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
-
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
-
         await esperar(290);
-
         if (loadingContainerAnim) {
             loadingContainerAnim.remove();
             loadingContainerAnim = null;
             loadingTexto = null;
         }
-
         if (delayAntesEntrada > 0) {
             await esperar(delayAntesEntrada);
         }
-
         if (!fecharDepois && !fecharDepoisClicar) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
         }
-
         if (fecharDepois) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
             setTimeout(() => {
                 fecharPopupAnimado();
             }, 4000);
         }
-
         if (fecharDepoisClicar) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-
             fecharComCliqueHandler = () => {
                 fecharPopupAnimado();
                 document.removeEventListener('click', fecharComCliqueHandler);
@@ -336,24 +338,19 @@ const MINHA_KEY = getMinhaKey();
 
     function fecharPopupAnimado() {
         if (!loadingTexto || !loadingContainerAnim) return;
-
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
-
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
-
         setTimeout(() => {
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
                 loadingTexto = null;
             }
-
             popupPrioritarioAtivo = false;
-
             if (fecharComCliqueHandler) {
                 document.removeEventListener('click', fecharComCliqueHandler);
                 fecharComCliqueHandler = null;
@@ -370,7 +367,6 @@ const MINHA_KEY = getMinhaKey();
             }
         }
         const keyOK = await verificarKeyAutorizada();
-
         if (keyOK) {
             await atualizarTextoPopup('KEY VALIDA', false, 1000, false, '#FFFFFF', '#00c080');
             await esperar(2000);
@@ -389,14 +385,12 @@ const MINHA_KEY = getMinhaKey();
             console.warn('Mensagens nao serao enviadas.');
             return;
         }
-
         try {
             console.log('Buscando dados...');
             const res = await fetch(planilhaURL);
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
-
             if (!rows || rows.length === 0) {
                 console.warn('Planilha vazia');
                 if (loadingContainerAnim) {
@@ -405,22 +399,17 @@ const MINHA_KEY = getMinhaKey();
                 }
                 return;
             }
-
             console.log(`Total de linhas: ${rows.length}`);
-
             for (let i = 1; i < rows.length; i++) {
                 const grupo = rows[i].c[1]?.v || '';
                 const mensagem = rows[i].c[3]?.v || '';
-
                 if (grupo && mensagem) {
                     console.log(`Enviando para "${grupo}": ${mensagem}`);
                     await enviarMensagem(grupo, mensagem);
                     await esperar(800);
                 }
             }
-
             await atualizarTextoPopup('MENSAGENS ENVIADAS', false, 0, true);
-
         } catch (e) {
             console.error('Erro ao buscar planilha:', e);
             if (loadingContainerAnim) {
@@ -436,7 +425,6 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
-
             for (let i = 0; i < rows.length; i++) {
                 const key = rows[i].c[4]?.v || '';
                 if (key === MINHA_KEY) {
@@ -444,7 +432,6 @@ const MINHA_KEY = getMinhaKey();
                     return true;
                 }
             }
-
             console.warn('KEY nao autorizada');
             return false;
         } catch (e) {
@@ -473,9 +460,7 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const novoValor = json.table.rows[0]?.c[0]?.v || '';
-
             console.log(`Monitorando: "${ultimoValorA1}", Atualizacao: "${novoValor}"`);
-
             if (novoValor !== ultimoValorA1) {
                 console.log('Acao detectada! Disparo iniciado');
                 ultimoValorA1 = novoValor;
