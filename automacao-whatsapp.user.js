@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.0
+// @version      1.1
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
