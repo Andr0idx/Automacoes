@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.1
+// @version      1.0
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/extrator-arco.user.js
-// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/extrator-arco.user.js
+// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/automacao-whatsapp.user.js
+// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/automacao-whatsapp.user.js
 // ==/UserScript==
 
 const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=Fila';
@@ -38,14 +38,12 @@ const MINHA_KEY = getMinhaKey();
     let popupPrioritarioAtivo = false;
 
     function ehPopupPrioritario(texto) {
-        const textosPrioritarios = [
-            'ESTÁGISCRAVO ATIVO',
-            'KEY VALIDA',
-            'KEY INVALIDA',
-            'MENSAGENS SENDO ENVIADAS',
-            'MENSAGENS ENVIADAS'
-        ];
-        return textosPrioritarios.some(t => texto.toUpperCase().includes(t.toUpperCase()));
+        if (!texto) return false;
+        const textoUpper = texto.toUpperCase();
+        if (textoUpper.includes('QUAL A BOA')) {
+            return false;
+        }
+        return true;
     }
 
     function adicionarIconeMarcaDagua() {
@@ -102,12 +100,21 @@ const MINHA_KEY = getMinhaKey();
         document.body.appendChild(container);
 
         iconeContainer.addEventListener('mouseenter', () => {
-            if (popupPrioritarioAtivo) return;
+            if (popupPrioritarioAtivo) {
+                return;
+            }
             iconeMarcaDagua.style.opacity = '1';
-            atualizarTextoPopup('QUAL A BOA?', false, 0, false, '#FFFFFF', '#00baff');
+            if (!loadingContainerAnim) {
+                criarPopupAnimadoAnim('QUAL A BOA?', '#FFFFFF', '#00baff');
+            } else {
+                atualizarTextoPopup('QUAL A BOA?', false, 0, false, '#FFFFFF', '#00baff');
+            }
         });
 
         iconeContainer.addEventListener('mouseleave', () => {
+            if (popupPrioritarioAtivo) {
+                return;
+            }
             iconeMarcaDagua.style.opacity = '0.15';
             fecharPopupAnimado();
         });
@@ -130,41 +137,46 @@ const MINHA_KEY = getMinhaKey();
     }
     adicionarIconeMarcaDagua();
 
-    function esperar(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    function esperar(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
     function cliqueReal(elemento) {
         ['mouseover', 'mousedown', 'mouseup', 'click'].forEach(eventoTipo => {
-            const evento = new MouseEvent(eventoTipo, {
-                view: window,
-                bubbles: true,
-                cancelable: true
-            });
+            const evento = new MouseEvent(eventoTipo, { view: window, bubbles: true, cancelable: true });
             elemento.dispatchEvent(evento);
         });
     }
 
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-        if (!barraPesquisa) return null;
+        if (!barraPesquisa) {
+            console.error('Barra de pesquisa não encontrada!');
+            return null;
+        }
+
         barraPesquisa.focus();
         document.execCommand('selectAll', false, null);
         document.execCommand('delete', false, null);
         await esperar(500);
+
         document.execCommand('insertText', false, nomeGrupo);
         await esperar(1500);
+
         document.execCommand('delete', false, null);
         await esperar(800);
+
         document.execCommand('insertText', false, nomeGrupo.slice(-1));
         await esperar(2000);
+
         const resultados = Array.from(document.querySelectorAll('span[title]'));
         const grupoElemento = resultados.find(el => el.title.toLowerCase() === nomeGrupo.toLowerCase()) || null;
+
         if (grupoElemento) {
+            console.log(`Encontrado grupo "${nomeGrupo}". Abrindo...`);
             cliqueReal(grupoElemento);
             await esperar(3000);
             return grupoElemento;
         } else {
+            console.warn(`Grupo "${nomeGrupo}" não encontrado.`);
             return null;
         }
     }
@@ -185,18 +197,35 @@ const MINHA_KEY = getMinhaKey();
 
     async function enviarMensagem(nomeGrupo, mensagem) {
         const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
-        if (!grupoElemento) return;
+        if (!grupoElemento) {
+            console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
+            return;
+        }
+
         const caixa = document.querySelector('[contenteditable="true"][data-tab="10"]');
-        if (!caixa) return;
+        if (!caixa) {
+            console.error('Caixa de mensagem não encontrada!');
+            return;
+        }
+
         caixa.focus();
+
         for (const linha of mensagem.split('\n')) {
             document.execCommand('insertText', false, linha);
             inserirQuebraDeLinha();
             await esperar(100);
         }
+
         await esperar(500);
+
         const botao = document.querySelector('span[data-icon="send"]');
-        if (botao) botao.click();
+        if (botao) {
+            botao.click();
+            console.log(`Mensagem enviada para: ${nomeGrupo}`);
+        } else {
+            console.warn('Botão de enviar não encontrado!');
+        }
+
         const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
         if (barraPesquisa) {
             barraPesquisa.focus();
@@ -211,6 +240,7 @@ const MINHA_KEY = getMinhaKey();
 
     function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (loadingContainerAnim) return;
+
         loadingContainerAnim = document.createElement('div');
         loadingContainerAnim.style.position = 'fixed';
         loadingContainerAnim.style.bottom = '8px';
@@ -221,6 +251,7 @@ const MINHA_KEY = getMinhaKey();
         loadingContainerAnim.style.zIndex = '9998';
         loadingContainerAnim.style.userSelect = 'none';
         loadingContainerAnim.style.pointerEvents = 'none';
+
         const textoContainer = document.createElement('div');
         textoContainer.style.position = 'absolute';
         textoContainer.style.top = '50%';
@@ -228,6 +259,7 @@ const MINHA_KEY = getMinhaKey();
         textoContainer.style.transform = 'translateY(-50%)';
         textoContainer.style.overflow = 'hidden';
         textoContainer.style.zIndex = '1';
+
         loadingTexto = document.createElement('div');
         loadingTexto.innerHTML = textoInicial + '<span style="display:inline-block; width:10px;"></span>';
         loadingTexto.style.color = corTexto;
@@ -240,39 +272,58 @@ const MINHA_KEY = getMinhaKey();
         loadingTexto.style.opacity = '1';
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
+
         textoContainer.appendChild(loadingTexto);
         loadingContainerAnim.appendChild(textoContainer);
         document.body.appendChild(loadingContainerAnim);
+
         setTimeout(() => {
             loadingTexto.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
             loadingTexto.style.opacity = '1';
             if (iconeMarcaDagua) iconeMarcaDagua.style.opacity = '1';
         }, 100);
-        if (ehPopupPrioritario(textoInicial)) popupPrioritarioAtivo = true;
+        if (ehPopupPrioritario(textoInicial)) {
+            popupPrioritarioAtivo = true;
+        }
     }
 
     async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
         if (!loadingTexto) return;
+
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
+
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
+
         await esperar(290);
+
         if (loadingContainerAnim) {
             loadingContainerAnim.remove();
             loadingContainerAnim = null;
             loadingTexto = null;
         }
-        if (delayAntesEntrada > 0) await esperar(delayAntesEntrada);
-        if (!fecharDepois && !fecharDepoisClicar) criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+
+        if (delayAntesEntrada > 0) {
+            await esperar(delayAntesEntrada);
+        }
+
+        if (!fecharDepois && !fecharDepoisClicar) {
+            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+        }
+
         if (fecharDepois) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
-            setTimeout(() => fecharPopupAnimado(), 4000);
+            setTimeout(() => {
+                fecharPopupAnimado();
+            }, 4000);
         }
+
         if (fecharDepoisClicar) {
             criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+
             fecharComCliqueHandler = () => {
                 fecharPopupAnimado();
                 document.removeEventListener('click', fecharComCliqueHandler);
@@ -285,19 +336,24 @@ const MINHA_KEY = getMinhaKey();
 
     function fecharPopupAnimado() {
         if (!loadingTexto || !loadingContainerAnim) return;
+
         loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
         loadingTexto.style.opacity = '0';
+
         if (iconeMarcaDagua) {
             iconeMarcaDagua.style.transition = 'opacity 1s ease';
             iconeMarcaDagua.style.opacity = '0.15';
         }
+
         setTimeout(() => {
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
                 loadingTexto = null;
             }
+
             popupPrioritarioAtivo = false;
+
             if (fecharComCliqueHandler) {
                 document.removeEventListener('click', fecharComCliqueHandler);
                 fecharComCliqueHandler = null;
@@ -306,8 +362,15 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function verificarKeyAutorizadaComPopup() {
-        criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#00baff');
+        if (!loadingContainerAnim) {
+            criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#00baff');
+            if (loadingTexto) {
+                loadingTexto.style.opacity = '0';
+                loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+            }
+        }
         const keyOK = await verificarKeyAutorizada();
+
         if (keyOK) {
             await atualizarTextoPopup('KEY VALIDA', false, 1000, false, '#FFFFFF', '#00c080');
             await esperar(2000);
@@ -322,29 +385,44 @@ const MINHA_KEY = getMinhaKey();
 
     async function dispararMensagens() {
         const keyOK = await verificarKeyAutorizadaComPopup();
-        if (!keyOK) return;
+        if (!keyOK) {
+            console.warn('Mensagens nao serao enviadas.');
+            return;
+        }
+
         try {
+            console.log('Buscando dados...');
             const res = await fetch(planilhaURL);
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
+
             if (!rows || rows.length === 0) {
+                console.warn('Planilha vazia');
                 if (loadingContainerAnim) {
                     loadingContainerAnim.remove();
                     loadingContainerAnim = null;
                 }
                 return;
             }
+
+            console.log(`Total de linhas: ${rows.length}`);
+
             for (let i = 1; i < rows.length; i++) {
                 const grupo = rows[i].c[1]?.v || '';
                 const mensagem = rows[i].c[3]?.v || '';
+
                 if (grupo && mensagem) {
+                    console.log(`Enviando para "${grupo}": ${mensagem}`);
                     await enviarMensagem(grupo, mensagem);
                     await esperar(800);
                 }
             }
+
             await atualizarTextoPopup('MENSAGENS ENVIADAS', false, 0, true);
+
         } catch (e) {
+            console.error('Erro ao buscar planilha:', e);
             if (loadingContainerAnim) {
                 loadingContainerAnim.remove();
                 loadingContainerAnim = null;
@@ -358,12 +436,19 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const rows = json.table.rows;
+
             for (let i = 0; i < rows.length; i++) {
                 const key = rows[i].c[4]?.v || '';
-                if (key === MINHA_KEY) return true;
+                if (key === MINHA_KEY) {
+                    console.log('KEY autorizada');
+                    return true;
+                }
             }
+
+            console.warn('KEY nao autorizada');
             return false;
         } catch (e) {
+            console.error('Erro ao verificar a KEY:', e);
             return false;
         }
     }
@@ -376,7 +461,10 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             ultimoValorA1 = json.table.rows[0]?.c[0]?.v || '';
-        } catch (e) {}
+            console.log(`Valor inicial: "${ultimoValorA1}"`);
+        } catch (e) {
+            console.error('Erro ao carregar valor inicial da celula A1:', e);
+        }
     }
 
     async function verificarMudanca() {
@@ -385,11 +473,17 @@ const MINHA_KEY = getMinhaKey();
             const texto = await res.text();
             const json = JSON.parse(texto.substring(47).slice(0, -2));
             const novoValor = json.table.rows[0]?.c[0]?.v || '';
+
+            console.log(`Monitorando: "${ultimoValorA1}", Atualizacao: "${novoValor}"`);
+
             if (novoValor !== ultimoValorA1) {
+                console.log('Acao detectada! Disparo iniciado');
                 ultimoValorA1 = novoValor;
                 await dispararMensagens();
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('Erro ao verificar atualizacao:', e);
+        }
     }
 
     (async () => {
@@ -400,4 +494,5 @@ const MINHA_KEY = getMinhaKey();
     window.dispararMensagens = dispararMensagens;
 
     console.log('Monitoramento iniciado aguardando acao');
+
 })();
