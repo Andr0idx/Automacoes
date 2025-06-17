@@ -15,7 +15,7 @@
     'use strict';
 
     const sheetId = '1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk';
-    const gid = '827520507';
+    const gid = '1016464742';
     const urlPlanilha = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}`;
     const TIMEOUT_MS = 120000;
 
