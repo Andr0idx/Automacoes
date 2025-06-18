@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.1
+// @version      1.2
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
@@ -68,7 +68,7 @@ const MINHA_KEY = getMinhaKey();
 
         textoMarcaDagua = document.createElement('div');
         textoMarcaDagua.style.whiteSpace = 'nowrap';
-        textoMarcaDagua.innerHTML = 'ESTÁGISCRAVO ATIVO!<span style="display:inline-block; width:5px;"></span>';
+        textoMarcaDagua.innerHTML = 'AUTOMAÇÃO WHATSAPP ATIVO!<span style="display:inline-block; width:5px;"></span>';
         textoMarcaDagua.style.color = '#FFFFFF';
         textoMarcaDagua.style.backgroundColor = '#00baff';
         textoMarcaDagua.style.padding = '4px 10px';
@@ -234,13 +234,26 @@ const MINHA_KEY = getMinhaKey();
             }
             inserirTextoNaCaixa(caixa, mensagem);
             await esperar(500);
-            const botao = document.querySelector('span[data-icon="send"]');
+
+            // Ajuste para o botão enviar atualizado
+            const botoesEnvio = [
+                'button[aria-label="Enviar"]',      // Português
+                'button[aria-label="Send"]',        // Inglês
+                'button[data-testid="send"]',       // Testid comum
+            ];
+            let botao = null;
+            for (const seletor of botoesEnvio) {
+                botao = document.querySelector(seletor);
+                if (botao) break;
+            }
+
             if (botao) {
                 botao.click();
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
             } else {
                 console.warn('Botão de enviar não encontrado!');
             }
+
             const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
             if (barraPesquisa) {
                 setContentEditableText(barraPesquisa, '');
