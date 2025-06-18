@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/automacao-whatsapp.user.js
 // ==/UserScript==
 
-const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=Fila';
+const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaMat';
 
 function getMinhaKey() {
     let key = localStorage.getItem('MINHA_KEY');
