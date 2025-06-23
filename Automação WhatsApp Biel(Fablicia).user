@@ -1,0 +1,492 @@
+// ==UserScript==
+// @name         Automação WhatsApp Biel
+// @namespace    https://github.com/Andr0idx/Automacoes
+// @version      1.2
+// @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
+// @author       Gabriel Guedes Araujo da Silva
+// @match        https://web.whatsapp.com/*
+// @grant        none
+// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/automacao-whatsapp.user.js
+// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/automacao-whatsapp.user.js
+// ==/UserScript==
+
+const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaMat';
+
+function getMinhaKey() {
+    let key = localStorage.getItem('MINHA_KEY');
+    if (!key) {
+        key = prompt('Digite sua chave única (MINHA_KEY):');
+        if (key) {
+            localStorage.setItem('MINHA_KEY', key);
+            console.log('MINHA_KEY salva no localStorage.');
+        } else {
+            alert('Chave única é obrigatória para continuar.');
+            throw new Error('MINHA_KEY não fornecida. Script parado.');
+        }
+    }
+    return key;
+}
+
+const MINHA_KEY = getMinhaKey();
+
+(function () {
+    console.log('Robo de Biel rodando!');
+
+    let iconeMarcaDagua = null;
+    let textoMarcaDagua = null;
+
+    let popupPrioritarioAtivo = false;
+
+    function ehPopupPrioritario(texto) {
+        if (!texto) return false;
+        const textoUpper = texto.toUpperCase();
+        if (textoUpper.includes('QUAL A BOA')) {
+            return false;
+        }
+        return true;
+    }
+
+    function adicionarIconeMarcaDagua() {
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.bottom = '10px';
+        container.style.right = '25px';
+        container.style.width = '280px';
+        container.style.height = '40px';
+        container.style.overflow = 'hidden';
+        container.style.zIndex = '9999';
+        container.style.userSelect = 'none';
+        container.style.pointerEvents = 'auto';
+
+        const textoContainer = document.createElement('div');
+        textoContainer.style.position = 'absolute';
+        textoContainer.style.top = '55%';
+        textoContainer.style.right = '30px';
+        textoContainer.style.transform = 'translateY(-50%)';
+        textoContainer.style.overflow = 'hidden';
+        textoContainer.style.zIndex = '1';
+
+        textoMarcaDagua = document.createElement('div');
+        textoMarcaDagua.style.whiteSpace = 'nowrap';
+        textoMarcaDagua.innerHTML = 'AUTOMAÇÃO WHATSAPP ATIVO!<span style="display:inline-block; width:5px;"></span>';
+        textoMarcaDagua.style.color = '#FFFFFF';
+        textoMarcaDagua.style.backgroundColor = '#00baff';
+        textoMarcaDagua.style.padding = '4px 10px';
+        textoMarcaDagua.style.borderRadius = '20px';
+        textoMarcaDagua.style.fontWeight = 'bold';
+        textoMarcaDagua.style.fontSize = '16px';
+        textoMarcaDagua.style.opacity = '1';
+        textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
+        textoMarcaDagua.style.transition = 'transform 1s ease-in-out, opacity 1s ease';
+        textoContainer.appendChild(textoMarcaDagua);
+
+        const iconeContainer = document.createElement('div');
+        iconeContainer.style.position = 'absolute';
+        iconeContainer.style.top = '50%';
+        iconeContainer.style.right = '0';
+        iconeContainer.style.transform = 'translateY(-50%)';
+        iconeContainer.style.zIndex = '2';
+        iconeContainer.style.cursor = 'default'; // cursor padrão, não interativo
+
+        iconeMarcaDagua = document.createElement('div');
+        iconeMarcaDagua.textContent = '🤖';
+        iconeMarcaDagua.style.fontSize = '30px';
+        iconeMarcaDagua.style.opacity = '0.15';  // começa com opacidade "marca d'água"
+        iconeMarcaDagua.style.transition = 'opacity 0.3s ease';
+        iconeContainer.appendChild(iconeMarcaDagua);
+
+        container.appendChild(textoContainer);
+        container.appendChild(iconeContainer);
+        document.body.appendChild(container);
+
+        // Removidos eventListeners mouseenter e mouseleave para não exibir popup e nem alterar opacidade
+
+        // Animação inicial da barra fixa
+        setTimeout(() => {
+            textoMarcaDagua.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
+        }, 100);
+
+        setTimeout(() => {
+            textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
+        }, 4000);
+
+        // Mantém opacidade reduzida fixamente, a opacidade será controlada pelas funções de popup existentes
+    }
+    adicionarIconeMarcaDagua();
+
+    function esperar(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    async function esperarElemento(selector, timeout = 15000) {
+        const inicio = Date.now();
+        while (Date.now() - inicio < timeout) {
+            const el = document.querySelector(selector);
+            if (el) return el;
+            await esperar(200);
+        }
+        throw new Error(`Elemento ${selector} não encontrado após ${timeout}ms`);
+    }
+
+    function cliqueReal(elemento) {
+        ['mouseover', 'mousedown', 'mouseup', 'click'].forEach(eventoTipo => {
+            const evento = new MouseEvent(eventoTipo, { view: window, bubbles: true, cancelable: true });
+            elemento.dispatchEvent(evento);
+        });
+    }
+
+    function setContentEditableText(element, text) {
+        element.focus();
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+        element.innerText = text;
+        const event = new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: text,
+            inputType: 'insertText',
+        });
+        element.dispatchEvent(event);
+    }
+
+    // Função para normalizar texto (minúsculas, remover acentos e espaços extras)
+    function normalizarTexto(texto) {
+        return texto
+            .toLowerCase()
+            .normalize("NFD")                     // Normalizar acentuação
+            .replace(/[\u0300-\u036f]/g, '')     // Remover acentuação
+            .replace(/\s+/g, ' ')                 // Espaços múltiplos viram um só espaço
+            .trim();
+    }
+
+    // Função modificada para busca mais flexível pelo nome do grupo
+    async function buscarGrupoPorPesquisa(nomeGrupo) {
+        try {
+            const barraPesquisa = await esperarElemento('div[contenteditable="true"][data-tab="3"]');
+            setContentEditableText(barraPesquisa, nomeGrupo);
+            await esperar(1500);  // aumentar espera para garantir atualização
+
+            const nomeNormalizado = normalizarTexto(nomeGrupo);
+
+            const resultados = Array.from(document.querySelectorAll('span[title]'));
+            const grupoElemento = resultados.find(el => {
+                if (!el.title) return false;
+                const tituloNormalizado = normalizarTexto(el.title);
+                return tituloNormalizado.includes(nomeNormalizado);
+            }) || null;
+
+            if (grupoElemento) {
+                console.log(`Encontrado grupo "${nomeGrupo}" (match flexível). Abrindo...`);
+                cliqueReal(grupoElemento);
+                await esperar(3000);
+                return grupoElemento;
+            } else {
+                console.warn(`Grupo "${nomeGrupo}" não encontrado (match flexível).`);
+                return null;
+            }
+        } catch (e) {
+            console.error('Erro ao buscar grupo por pesquisa:', e);
+            return null;
+        }
+    }
+
+    function inserirQuebraDeLinha() {
+        const keyboardEvent = new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true
+        });
+        const input = document.querySelector('[contenteditable="true"][data-tab="10"]');
+        if (input) {
+            input.dispatchEvent(keyboardEvent);
+        }
+    }
+
+    function inserirTextoNaCaixa(caixa, texto) {
+        caixa.focus();
+        caixa.innerText = texto;
+        const event = new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: texto,
+            inputType: 'insertText',
+        });
+        caixa.dispatchEvent(event);
+    }
+
+    async function enviarMensagem(nomeGrupo, mensagem) {
+        try {
+            const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
+            if (!grupoElemento) {
+                console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
+                return;
+            }
+            const caixa = await esperarElemento('[contenteditable="true"][data-tab="10"]');
+            if (!caixa) {
+                console.error('Caixa de mensagem não encontrada!');
+                return;
+            }
+            inserirTextoNaCaixa(caixa, mensagem);
+            await esperar(500);
+
+            // Ajuste para o botão enviar atualizado
+            const botoesEnvio = [
+                'button[aria-label="Enviar"]',      // Português
+                'button[aria-label="Send"]',        // Inglês
+                'button[data-testid="send"]',       // Testid comum
+            ];
+            let botao = null;
+            for (const seletor of botoesEnvio) {
+                botao = document.querySelector(seletor);
+                if (botao) break;
+            }
+
+            if (botao) {
+                botao.click();
+                console.log(`Mensagem enviada para: ${nomeGrupo}`);
+            } else {
+                console.warn('Botão de enviar não encontrado!');
+            }
+
+            const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
+            if (barraPesquisa) {
+                setContentEditableText(barraPesquisa, '');
+            }
+        } catch (e) {
+            console.error('Erro em enviarMensagem:', e);
+        }
+    }
+
+    let loadingContainerAnim = null;
+    let loadingTexto = null;
+    let fecharComCliqueHandler = null;
+
+    function criarPopupAnimadoAnim(textoInicial, corTexto = '#FFFFFF', corFundo = '#00baff') {
+        if (loadingContainerAnim) return;
+        loadingContainerAnim = document.createElement('div');
+        loadingContainerAnim.style.position = 'fixed';
+        loadingContainerAnim.style.bottom = '8px';
+        loadingContainerAnim.style.right = '20px';
+        loadingContainerAnim.style.width = '500px';
+        loadingContainerAnim.style.height = '40px';
+        loadingContainerAnim.style.overflow = 'hidden';
+        loadingContainerAnim.style.zIndex = '9998';
+        loadingContainerAnim.style.userSelect = 'none';
+        loadingContainerAnim.style.pointerEvents = 'none';
+        const textoContainer = document.createElement('div');
+        textoContainer.style.position = 'absolute';
+        textoContainer.style.top = '50%';
+        textoContainer.style.right = '30px';
+        textoContainer.style.transform = 'translateY(-50%)';
+        textoContainer.style.overflow = 'hidden';
+        textoContainer.style.zIndex = '1';
+        loadingTexto = document.createElement('div');
+        loadingTexto.innerHTML = textoInicial + '<span style="display:inline-block; width:10px;"></span>';
+        loadingTexto.style.color = corTexto;
+        loadingTexto.style.backgroundColor = corFundo;
+        loadingTexto.style.padding = '6px 12px';
+        loadingTexto.style.borderRadius = '20px';
+        loadingTexto.style.fontWeight = 'bold';
+        loadingTexto.style.fontSize = '14px';
+        loadingTexto.style.whiteSpace = 'nowrap';
+        loadingTexto.style.opacity = '1';
+        loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+        loadingTexto.style.transition = 'transform 1.0s ease-in-out, opacity 1.0s ease';
+        textoContainer.appendChild(loadingTexto);
+        loadingContainerAnim.appendChild(textoContainer);
+        document.body.appendChild(loadingContainerAnim);
+        setTimeout(() => {
+            loadingTexto.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
+            loadingTexto.style.opacity = '1';
+            if (iconeMarcaDagua) iconeMarcaDagua.style.opacity = '1';
+        }, 100);
+        if (ehPopupPrioritario(textoInicial)) {
+            popupPrioritarioAtivo = true;
+        }
+    }
+
+    async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false, corTexto = '#FFFFFF', corFundo = '#00baff') {
+        if (!loadingTexto) return;
+        loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+        loadingTexto.style.opacity = '0';
+        if (iconeMarcaDagua) {
+            iconeMarcaDagua.style.transition = 'opacity 1s ease';
+            iconeMarcaDagua.style.opacity = '0.15';
+        }
+        await esperar(290);
+        if (loadingContainerAnim) {
+            loadingContainerAnim.remove();
+            loadingContainerAnim = null;
+            loadingTexto = null;
+        }
+        if (delayAntesEntrada > 0) {
+            await esperar(delayAntesEntrada);
+        }
+        if (!fecharDepois && !fecharDepoisClicar) {
+            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+        }
+        if (fecharDepois) {
+            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+            setTimeout(() => {
+                fecharPopupAnimado();
+            }, 4000);
+        }
+        if (fecharDepoisClicar) {
+            criarPopupAnimadoAnim(textoNovo, corTexto, corFundo);
+            fecharComCliqueHandler = () => {
+                fecharPopupAnimado();
+                document.removeEventListener('click', fecharComCliqueHandler);
+                fecharComCliqueHandler = null;
+            };
+            document.addEventListener('click', fecharComCliqueHandler);
+        }
+        popupPrioritarioAtivo = ehPopupPrioritario(textoNovo);
+    }
+
+    function fecharPopupAnimado() {
+        if (!loadingTexto || !loadingContainerAnim) return;
+        loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+        loadingTexto.style.opacity = '0';
+        if (iconeMarcaDagua) {
+            iconeMarcaDagua.style.transition = 'opacity 1s ease';
+            iconeMarcaDagua.style.opacity = '0.15';
+        }
+        setTimeout(() => {
+            if (loadingContainerAnim) {
+                loadingContainerAnim.remove();
+                loadingContainerAnim = null;
+                loadingTexto = null;
+            }
+            popupPrioritarioAtivo = false;
+            if (fecharComCliqueHandler) {
+                document.removeEventListener('click', fecharComCliqueHandler);
+                fecharComCliqueHandler = null;
+            }
+        }, 600);
+    }
+
+    async function verificarKeyAutorizadaComPopup() {
+        if (!loadingContainerAnim) {
+            criarPopupAnimadoAnim('VALIDANDO KEY...', '#FFFFFF', '#00baff');
+            if (loadingTexto) {
+                loadingTexto.style.opacity = '0';
+                loadingTexto.style.transform = 'translateX(100%) scale(0.8)';
+            }
+        }
+        const keyOK = await verificarKeyAutorizada();
+        if (keyOK) {
+            await atualizarTextoPopup('KEY VALIDA', false, 1000, false, '#FFFFFF', '#00c080');
+            await esperar(2000);
+            await atualizarTextoPopup('MENSAGENS SENDO ENVIADAS... RELAXA AI E NAO SAI DESSA TELA', false, 100, false, '#FFFFFF', '#00baff');
+            await esperar(1200);
+            return true;
+        } else {
+            await atualizarTextoPopup('KEY INVALIDA', false, 0, true, '#FFFFFF', '#ba0032');
+            return false;
+        }
+    }
+
+    async function dispararMensagens() {
+        const keyOK = await verificarKeyAutorizadaComPopup();
+        if (!keyOK) {
+            console.warn('Mensagens nao serao enviadas.');
+            return;
+        }
+        try {
+            console.log('Buscando dados...');
+            const res = await fetch(planilhaURL);
+            const texto = await res.text();
+            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const rows = json.table.rows;
+            if (!rows || rows.length === 0) {
+                console.warn('Planilha vazia');
+                if (loadingContainerAnim) {
+                    loadingContainerAnim.remove();
+                    loadingContainerAnim = null;
+                }
+                return;
+            }
+            console.log(`Total de linhas: ${rows.length}`);
+            for (let i = 1; i < rows.length; i++) {
+                const grupo = rows[i].c[1]?.v || '';
+                const mensagem = rows[i].c[3]?.v || '';
+                if (grupo && mensagem) {
+                    console.log(`Enviando para "${grupo}": ${mensagem}`);
+                    await enviarMensagem(grupo, mensagem);
+                    await esperar(800);
+                }
+            }
+            await atualizarTextoPopup('MENSAGENS ENVIADAS', false, 0, true);
+        } catch (e) {
+            console.error('Erro ao buscar planilha:', e);
+            if (loadingContainerAnim) {
+                loadingContainerAnim.remove();
+                loadingContainerAnim = null;
+            }
+        }
+    }
+
+    async function verificarKeyAutorizada() {
+        try {
+            const res = await fetch(planilhaURL);
+            const texto = await res.text();
+            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const rows = json.table.rows;
+            for (let i = 0; i < rows.length; i++) {
+                const key = rows[i].c[4]?.v || '';
+                if (key === MINHA_KEY) {
+                    console.log('KEY autorizada');
+                    return true;
+                }
+            }
+            console.warn('KEY nao autorizada');
+            return false;
+        } catch (e) {
+            console.error('Erro ao verificar a KEY:', e);
+            return false;
+        }
+    }
+
+    let ultimoValorA1 = null;
+
+    async function carregarValorInicialA1() {
+        try {
+            const res = await fetch(planilhaURL);
+            const texto = await res.text();
+            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            ultimoValorA1 = json.table.rows[0]?.c[0]?.v || '';
+            console.log(`Valor inicial: "${ultimoValorA1}"`);
+        } catch (e) {
+            console.error('Erro ao carregar valor inicial da celula A1:', e);
+        }
+    }
+
+    async function verificarMudanca() {
+        try {
+            const res = await fetch(planilhaURL);
+            const texto = await res.text();
+            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const novoValor = json.table.rows[0]?.c[0]?.v || '';
+            console.log(`Monitorando: "${ultimoValorA1}", Atualizacao: "${novoValor}"`);
+            if (novoValor !== ultimoValorA1) {
+                console.log('Acao detectada! Disparo iniciado');
+                ultimoValorA1 = novoValor;
+                await dispararMensagens();
+            }
+        } catch (e) {
+            console.error('Erro ao verificar atualizacao:', e);
+        }
+    }
+
+    (async () => {
+        await carregarValorInicialA1();
+        setInterval(verificarMudanca, 5000);
+    })();
+
+    window.dispararMensagens = dispararMensagens;
+
+    console.log('Monitoramento iniciado aguardando acao');
+
+})();
