@@ -99,9 +99,6 @@ const MINHA_KEY = getMinhaKey();
         container.appendChild(iconeContainer);
         document.body.appendChild(container);
 
-        // Removidos eventListeners mouseenter e mouseleave para não exibir popup e nem alterar opacidade
-
-        // Animação inicial da barra fixa
         setTimeout(() => {
             textoMarcaDagua.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
         }, 100);
@@ -109,8 +106,6 @@ const MINHA_KEY = getMinhaKey();
         setTimeout(() => {
             textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
         }, 4000);
-
-        // Mantém opacidade reduzida fixamente, a opacidade será controlada pelas funções de popup existentes
     }
     adicionarIconeMarcaDagua();
 
@@ -147,22 +142,20 @@ const MINHA_KEY = getMinhaKey();
         element.dispatchEvent(event);
     }
 
-    // Função para normalizar texto (minúsculas, remover acentos e espaços extras)
     function normalizarTexto(texto) {
         return texto
             .toLowerCase()
-            .normalize("NFD")                     // Normalizar acentuação
-            .replace(/[\u0300-\u036f]/g, '')     // Remover acentuação
-            .replace(/\s+/g, ' ')                 // Espaços múltiplos viram um só espaço
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
             .trim();
     }
 
-    // Função modificada para busca mais flexível pelo nome do grupo
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
             const barraPesquisa = await esperarElemento('div[contenteditable="true"][data-tab="3"]');
             setContentEditableText(barraPesquisa, nomeGrupo);
-            await esperar(1500);  // aumentar espera para garantir atualização
+            await esperar(2500); // Aumentando espera para garantir atualização
 
             const nomeNormalizado = normalizarTexto(nomeGrupo);
 
@@ -231,11 +224,10 @@ const MINHA_KEY = getMinhaKey();
             inserirTextoNaCaixa(caixa, mensagem);
             await esperar(500);
 
-            // Ajuste para o botão enviar atualizado
             const botoesEnvio = [
-                'button[aria-label="Enviar"]',      // Português
-                'button[aria-label="Send"]',        // Inglês
-                'button[data-testid="send"]',       // Testid comum
+                'button[aria-label="Enviar"]',
+                'button[aria-label="Send"]',
+                'button[data-testid="send"]',
             ];
             let botao = null;
             for (const seletor of botoesEnvio) {
@@ -246,13 +238,19 @@ const MINHA_KEY = getMinhaKey();
             if (botao) {
                 botao.click();
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
+                await esperar(1500);
+
+                // Limpar barra de pesquisa e forçar atualização da lista de chats
+                const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
+                if (barraPesquisa) {
+                    setContentEditableText(barraPesquisa, '');
+                    await esperar(2500);
+                    const painelChats = document.querySelector('#pane-side');
+                    if (painelChats) painelChats.click();
+                    await esperar(1000);
+                }
             } else {
                 console.warn('Botão de enviar não encontrado!');
-            }
-
-            const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-            if (barraPesquisa) {
-                setContentEditableText(barraPesquisa, '');
             }
         } catch (e) {
             console.error('Erro em enviarMensagem:', e);
