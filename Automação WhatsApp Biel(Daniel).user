@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(Fablicia).user.js
 // ==/UserScript==
 
-const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaTaci';
+const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaEvelyn';
 
 function getMinhaKey() {
     let key = localStorage.getItem('MINHA_KEY');
