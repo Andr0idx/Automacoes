@@ -6,8 +6,8 @@
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(William).user.js
-// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(William).user.js
+// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(Fablicia).user.js
+// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(Fablicia).user.js
 // ==/UserScript==
 
 const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaNic';
@@ -86,38 +86,18 @@ const MINHA_KEY = getMinhaKey();
         iconeContainer.style.right = '0';
         iconeContainer.style.transform = 'translateY(-50%)';
         iconeContainer.style.zIndex = '2';
-        iconeContainer.style.cursor = 'pointer';
+        iconeContainer.style.cursor = 'default'; // cursor padrão, não interativo
 
         iconeMarcaDagua = document.createElement('div');
         iconeMarcaDagua.textContent = '🤖';
         iconeMarcaDagua.style.fontSize = '30px';
-        iconeMarcaDagua.style.opacity = '1';
+        iconeMarcaDagua.style.opacity = '0.15';  // começa com opacidade "marca d'água"
         iconeMarcaDagua.style.transition = 'opacity 0.3s ease';
         iconeContainer.appendChild(iconeMarcaDagua);
 
         container.appendChild(textoContainer);
         container.appendChild(iconeContainer);
         document.body.appendChild(container);
-
-        iconeContainer.addEventListener('mouseenter', () => {
-            if (popupPrioritarioAtivo) {
-                return;
-            }
-            iconeMarcaDagua.style.opacity = '1';
-            if (!loadingContainerAnim) {
-                criarPopupAnimadoAnim('QUAL A BOA?', '#FFFFFF', '#00baff');
-            } else {
-                atualizarTextoPopup('QUAL A BOA?', false, 0, false, '#FFFFFF', '#00baff');
-            }
-        });
-
-        iconeContainer.addEventListener('mouseleave', () => {
-            if (popupPrioritarioAtivo) {
-                return;
-            }
-            iconeMarcaDagua.style.opacity = '0.15';
-            fecharPopupAnimado();
-        });
 
         setTimeout(() => {
             textoMarcaDagua.style.transform = 'translateX(calc(12% - 2px)) scale(0.8)';
@@ -126,14 +106,6 @@ const MINHA_KEY = getMinhaKey();
         setTimeout(() => {
             textoMarcaDagua.style.transform = 'translateX(100%) scale(0.8)';
         }, 4000);
-
-        setTimeout(() => {
-            iconeMarcaDagua.style.opacity = '0.15';
-        }, 5200);
-
-        setTimeout(() => {
-            textoMarcaDagua.style.opacity = '0';
-        }, 5600);
     }
     adicionarIconeMarcaDagua();
 
@@ -170,22 +142,20 @@ const MINHA_KEY = getMinhaKey();
         element.dispatchEvent(event);
     }
 
-    // Função para normalizar texto (minúsculas, remover acentos e espaços extras)
     function normalizarTexto(texto) {
         return texto
             .toLowerCase()
-            .normalize("NFD")                     // Normalizar acentuação
-            .replace(/[\u0300-\u036f]/g, '')     // Remover acentuação
-            .replace(/\s+/g, ' ')                 // Espaços múltiplos viram um só espaço
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
             .trim();
     }
 
-    // Função modificada para busca mais flexível pelo nome do grupo
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
             const barraPesquisa = await esperarElemento('div[contenteditable="true"][data-tab="3"]');
             setContentEditableText(barraPesquisa, nomeGrupo);
-            await esperar(1500);  // aumentar espera para garantir atualização
+            await esperar(2500); // Aumentando espera para garantir atualização
 
             const nomeNormalizado = normalizarTexto(nomeGrupo);
 
@@ -254,11 +224,10 @@ const MINHA_KEY = getMinhaKey();
             inserirTextoNaCaixa(caixa, mensagem);
             await esperar(500);
 
-            // Ajuste para o botão enviar atualizado
             const botoesEnvio = [
-                'button[aria-label="Enviar"]',      // Português
-                'button[aria-label="Send"]',        // Inglês
-                'button[data-testid="send"]',       // Testid comum
+                'button[aria-label="Enviar"]',
+                'button[aria-label="Send"]',
+                'button[data-testid="send"]',
             ];
             let botao = null;
             for (const seletor of botoesEnvio) {
@@ -269,13 +238,19 @@ const MINHA_KEY = getMinhaKey();
             if (botao) {
                 botao.click();
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
+                await esperar(1500);
+
+                // Limpar barra de pesquisa e forçar atualização da lista de chats
+                const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
+                if (barraPesquisa) {
+                    setContentEditableText(barraPesquisa, '');
+                    await esperar(2500);
+                    const painelChats = document.querySelector('#pane-side');
+                    if (painelChats) painelChats.click();
+                    await esperar(1000);
+                }
             } else {
                 console.warn('Botão de enviar não encontrado!');
-            }
-
-            const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-            if (barraPesquisa) {
-                setContentEditableText(barraPesquisa, '');
             }
         } catch (e) {
             console.error('Erro em enviarMensagem:', e);
