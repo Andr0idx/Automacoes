@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      1.2
+// @version      1.5
 // @description  Envia mensagem no WhatsApp buscando grupo pela barra de pesquisa, com clique após a busca e verificação de chave (KEY) na planilha, operação iniciada por botão no sheets
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automação-WhatsApp-Biel(Fablicia).user.js
 // ==/UserScript==
 
-const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=FilaEvelyn';
+const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=Fila';
 
 function getMinhaKey() {
     let key = localStorage.getItem('MINHA_KEY');
@@ -86,12 +86,12 @@ const MINHA_KEY = getMinhaKey();
         iconeContainer.style.right = '0';
         iconeContainer.style.transform = 'translateY(-50%)';
         iconeContainer.style.zIndex = '2';
-        iconeContainer.style.cursor = 'default'; // cursor padrão, não interativo
+        iconeContainer.style.cursor = 'default';
 
         iconeMarcaDagua = document.createElement('div');
         iconeMarcaDagua.textContent = '🤖';
         iconeMarcaDagua.style.fontSize = '30px';
-        iconeMarcaDagua.style.opacity = '0.15';  // começa com opacidade "marca d'água"
+        iconeMarcaDagua.style.opacity = '0.15';
         iconeMarcaDagua.style.transition = 'opacity 0.3s ease';
         iconeContainer.appendChild(iconeMarcaDagua);
 
@@ -151,15 +151,23 @@ const MINHA_KEY = getMinhaKey();
             .trim();
     }
 
+    // ALTERAÇÃO PRINCIPAL: buscarGrupoPorPesquisa agora limpa a barra antes de digitar, espera a atualização da lista, e clica com delay
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
             const barraPesquisa = await esperarElemento('div[contenteditable="true"][data-tab="3"]');
+
+            // Limpa a barra para resetar pesquisa
+            setContentEditableText(barraPesquisa, '');
+            await esperar(600);
+
+            // Digita o nome do grupo
             setContentEditableText(barraPesquisa, nomeGrupo);
-            await esperar(2500); // Aumentando espera para garantir atualização
+            await esperar(1800); // espera maior para garantir atualização da lista lateral
 
-            const nomeNormalizado = normalizarTexto(nomeGrupo);
-
+            // Obter lista atualizada de resultados
             const resultados = Array.from(document.querySelectorAll('span[title]'));
+            const nomeNormalizado = normalizarTexto(nomeGrupo);
+            // Busca o grupo mais parecido pelo título
             const grupoElemento = resultados.find(el => {
                 if (!el.title) return false;
                 const tituloNormalizado = normalizarTexto(el.title);
@@ -169,7 +177,9 @@ const MINHA_KEY = getMinhaKey();
             if (grupoElemento) {
                 console.log(`Encontrado grupo "${nomeGrupo}" (match flexível). Abrindo...`);
                 cliqueReal(grupoElemento);
-                await esperar(3000);
+                // Espera a conversa abrir: aguarda por caixa de mensagem existir e estar vazia
+                await esperarElemento('[contenteditable="true"][data-tab="10"]');
+                await esperar(1200);
                 return grupoElemento;
             } else {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado (match flexível).`);
@@ -209,6 +219,7 @@ const MINHA_KEY = getMinhaKey();
         caixa.dispatchEvent(event);
     }
 
+    // Nova versão da função enviarMensagem que envia a mensagem simulando ENTER
     async function enviarMensagem(nomeGrupo, mensagem) {
         try {
             const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
@@ -224,38 +235,30 @@ const MINHA_KEY = getMinhaKey();
             inserirTextoNaCaixa(caixa, mensagem);
             await esperar(500);
 
-            const botoesEnvio = [
-                'button[aria-label="Enviar"]',
-                'button[aria-label="Send"]',
-                'button[data-testid="send"]',
-            ];
-            let botao = null;
-            for (const seletor of botoesEnvio) {
-                botao = document.querySelector(seletor);
-                if (botao) break;
-            }
+            // Simula tecla ENTER para enviar
+            const tecladoEnviar = new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+            });
+            caixa.dispatchEvent(tecladoEnviar);
+            console.log(`Mensagem enviada (via Enter) para: ${nomeGrupo}`);
 
-            if (botao) {
-                botao.click();
-                console.log(`Mensagem enviada para: ${nomeGrupo}`);
-                await esperar(1500);
-
-                // Limpar barra de pesquisa e forçar atualização da lista de chats
-                const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
-                if (barraPesquisa) {
-                    setContentEditableText(barraPesquisa, '');
-                    await esperar(2500);
-                    const painelChats = document.querySelector('#pane-side');
-                    if (painelChats) painelChats.click();
-                    await esperar(1000);
-                }
-            } else {
-                console.warn('Botão de enviar não encontrado!');
+            // Limpar barra de pesquisa para próxima pesquisa funcionar bem
+            const barraPesquisa = document.querySelector('div[contenteditable="true"][data-tab="3"]');
+            if (barraPesquisa) {
+                setContentEditableText(barraPesquisa, '');
+                await esperar(700);
             }
         } catch (e) {
             console.error('Erro em enviarMensagem:', e);
         }
     }
+
+    // --- O resto do seu código original permanece igual ---
 
     let loadingContainerAnim = null;
     let loadingTexto = null;
