@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Script para automatizar Whatsapp
-// @author       Seu Nome
+// @author       Gabriel Guedes A
 // @match        https://web.whatsapp.com/*
 // @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
 // @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
