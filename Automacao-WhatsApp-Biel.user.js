@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Automação WhatsApp Biel
+// @name         Automação WhatsApp Biel 
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.2
+// @version      2.3
 // @description  Envios de mensagens no WhatsApp leves.
 // @author       Gabriel Guedes Araujo da Silva
 // @match        https://web.whatsapp.com/*
