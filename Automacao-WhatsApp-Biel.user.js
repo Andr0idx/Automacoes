@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         Automação WhatsApp Biel 
-// @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.3
-// @description  Envios de mensagens no WhatsApp leves.
-// @author       Gabriel Guedes Araujo da Silva
+// @name         Automação WhatsApp Biel
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @description  Script para automatizar Whatsapp
+// @author       Seu Nome
 // @match        https://web.whatsapp.com/*
+// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
+// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automa%C3%A7%C3%A3o%20WhatsApp%20Biel.user
-// @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automa%C3%A7%C3%A3o%20WhatsApp%20Biel.user
 // ==/UserScript==
 
 const planilhaURL = 'https://docs.google.com/spreadsheets/d/1ST5rfClXrd8lEwQqjsRaFMeIwJ4M_yH7pWsVIlbqIMk/gviz/tq?tqx=out:json&sheet=Fila';
