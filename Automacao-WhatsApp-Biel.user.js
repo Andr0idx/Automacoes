@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    http://tampermonkey.net/
-// @version      2.2
-// @description  Script para automatizar Whatsapp
-// @author       Gabriel Guedes A
+// @version      2.3
+// @description  Script para automatizar Whatsapp com envio mais robusto
+// @author       Gabriel Guedes A + ajustes assistente
 // @match        https://web.whatsapp.com/*
 // @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
 // @downloadURL  https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
@@ -135,7 +135,7 @@ const MINHA_KEY = getMinhaKey();
         await esperar(400);
     }
 
-    // Função buscar grupo agora aguarda lista atualizar COMPLETA antes de clicar
+    // Função buscar grupo robusta com espera para título certinho
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
             const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
@@ -150,56 +150,67 @@ const MINHA_KEY = getMinhaKey();
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
             inputPesquisa.dispatchEvent(new Event('input', { bubbles: true }));
 
-            // Aguardar atualização da lista COMPLETA:
+            // Esperar até lista estabilizar e com item encontrado
             const nomeNorm = normalizarTexto(nomeGrupo);
-            const maxTempo = 6000;
-            const inicio = Date.now();
+            const maxTempoLista = 6000;
+            const inicioLista = Date.now();
             let ultimaQtdResultados = -1;
             let contadorSemMudanca = 0;
             let resultadosAnteriores = [];
 
-            while ((Date.now() - inicio) < maxTempo) {
+            while ((Date.now() - inicioLista) < maxTempoLista) {
                 const resultados = Array.from(document.querySelectorAll('div[role="row"] span[title]'))
                     .filter(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
 
-                // Se a lista estiver estável (mesmo array ou mesmo comprimento) por algumas interações, assume completa
                 if (resultados.length === ultimaQtdResultados &&
                     resultados.every((el, idx) => el === resultadosAnteriores[idx])) {
                     contadorSemMudanca++;
                     if (contadorSemMudanca >= 5) {
-                        // estabilidade detectada
-                        if (resultados.length > 0) {
-                            cliqueReal(resultados[0]);
-                            await esperar(150);
-                            return resultados[0];
-                        } else {
-                            break;
+                        if (resultados.length > 0) break;
+                        else {
+                            await esperar(100);
+                            return null;
                         }
                     }
                 } else {
-                    // Resetar contador se mudou
                     contadorSemMudanca = 0;
                 }
-
                 ultimaQtdResultados = resultados.length;
                 resultadosAnteriores = resultados;
-
                 await esperar(150);
             }
 
-            // Caso não tenha encontrado o grupo na lista estável, tenta encontrar qualquer resultado e clicar
-            const ultimaLista = Array.from(document.querySelectorAll('div[role="row"] span[title]'))
-                .filter(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
-            if (ultimaLista.length > 0) {
-                cliqueReal(ultimaLista[0]);
-                await esperar(150);
-                return ultimaLista[0];
+            if (ultimaQtdResultados <= 0) {
+                console.warn(`Grupo "${nomeGrupo}" não encontrado na lista.`);
+                await limparAntesDeDigitar(inputPesquisa);
+                return null;
             }
 
-            // Falha
-            console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
-            await limparAntesDeDigitar(inputPesquisa);
-            return null;
+            // Agora clicar e esperar o título do chat atualizar firmemente
+            const elementoGrupo = resultadosAnteriores[0];
+            cliqueReal(elementoGrupo);
+
+            const chatTitleSelector = 'header span[title], header div[title]';
+            const chatTitleElement = await esperarElemento(chatTitleSelector, 3000);
+
+            const maxTempoTitulo = 5000;
+            const inicioTitulo = Date.now();
+            let titleAtual = '';
+            while ((Date.now() - inicioTitulo) < maxTempoTitulo) {
+                titleAtual = chatTitleElement?.getAttribute('title') || chatTitleElement?.textContent || '';
+                if (normalizarTexto(titleAtual).includes(nomeNorm)) break;
+                await esperar(200);
+            }
+
+            if (!normalizarTexto(titleAtual).includes(nomeNorm)) {
+                console.warn(`Título do chat não corresponde ao grupo "${nomeGrupo}". Abortando essa tentativa.`);
+                await limparAntesDeDigitar(inputPesquisa);
+                return null;
+            }
+
+            await esperar(200); // pequeno buffer extra
+
+            return elementoGrupo;
 
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
@@ -221,20 +232,34 @@ const MINHA_KEY = getMinhaKey();
         caixa.dispatchEvent(event);
     }
 
-    async function esperarEnvioCompleto(caixa, timeoutMs = 8000) {
+    async function esperarEnvioCompleto(caixa, timeoutMs = 12000) {
+        // Verifica se a última mensagem enviada aparece na conversa
         const inicio = Date.now();
+
+        // Função para pegar a última mensagem texto no chat
+        const getUltimaMensagemTexto = () => {
+            // Mensagens geralmente em 'div.copyable-text > span.selectable-text'
+            const mensagens = document.querySelectorAll('div.copyable-text > span.selectable-text');
+            if (!mensagens || mensagens.length === 0) return null;
+            return mensagens[mensagens.length - 1].innerText.trim();
+        };
+
         while ((Date.now() - inicio) < timeoutMs) {
-            if (!caixa.innerText || caixa.innerText.trim() === '') {
+            const textoCaixaVazia = !caixa.innerText || caixa.innerText.trim() === '';
+            const ultimaMsgTexto = getUltimaMensagemTexto();
+
+            if (textoCaixaVazia && ultimaMsgTexto && ultimaMsgTexto.length > 0) {
                 return true;
             }
-            await esperar(150);
+            await esperar(250);
         }
-        console.warn('Timeout aguardando campo de mensagem vazio (envio completo).');
+        console.warn('Timeout aguardando confirmação visual de envio da mensagem.');
         return false;
     }
 
     async function enviarMensagem(nomeGrupo, mensagem) {
         try {
+            console.log(`Buscando grupo: "${nomeGrupo}"`);
             const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
             if (!grupoElemento) {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
@@ -246,7 +271,7 @@ const MINHA_KEY = getMinhaKey();
                 return false;
             }
             inserirTextoNaCaixa(caixa, mensagem);
-            await esperar(10);
+            await esperar(100);
 
             const tecladoEnviar = new KeyboardEvent('keydown', {
                 key: 'Enter',
@@ -258,15 +283,19 @@ const MINHA_KEY = getMinhaKey();
             });
             caixa.dispatchEvent(tecladoEnviar);
 
-            const enviado = await esperarEnvioCompleto(caixa, 8000);
+            const enviado = await esperarEnvioCompleto(caixa, 12000);
             if (!enviado) {
-                console.warn('Falha ou timeout no envio da mensagem no grupo:', nomeGrupo);
+                console.warn(`Falha ou timeout no envio da mensagem no grupo: "${nomeGrupo}"`);
             } else {
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
             }
 
+            // Limpar pesquisa só após confirmação do envio e aguardar para evitar sobreposição
             const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
-            if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
+            if (inputPesquisa) {
+                await limparAntesDeDigitar(inputPesquisa);
+            }
+            await esperar(1200); // pausa sólida antes do próximo envio
 
             return enviado;
         } catch (e) {
@@ -541,7 +570,7 @@ const MINHA_KEY = getMinhaKey();
                         totalFalhas++;
                         erros.push(`Erro ao enviar para o grupo "${grupo}": ${e.message || e}`);
                     }
-                    await esperar(500);
+                    // Já há espera interna no enviarMensagem para evitar atropelos
                 }
             }
 
