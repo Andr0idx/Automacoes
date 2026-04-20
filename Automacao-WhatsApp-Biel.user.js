@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Script para automatizar Whatsapp
 // @author       Gabriel Guedes A
 // @match        https://web.whatsapp.com/*
@@ -135,51 +135,72 @@ const MINHA_KEY = getMinhaKey();
         await esperar(400);
     }
 
+    // Função buscar grupo agora aguarda lista atualizar COMPLETA antes de clicar
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
             const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
             if (!inputPesquisa) throw new Error('Campo de pesquisa não encontrado');
+
             await limparAntesDeDigitar(inputPesquisa);
             await clicarEFocarCampoPesquisa(inputPesquisa);
+
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
             setInputValueReactCompatible(inputPesquisa, nomeGrupo);
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionupdate', { data: nomeGrupo, bubbles: true }));
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
             inputPesquisa.dispatchEvent(new Event('input', { bubbles: true }));
-            await esperar(500);
-            inputPesquisa.blur();
-            await esperar(100);
-            inputPesquisa.focus();
-            await esperar(700);
+
+            // Aguardar atualização da lista COMPLETA:
             const nomeNorm = normalizarTexto(nomeGrupo);
-            const maxTempo = 3000;
+            const maxTempo = 6000;
             const inicio = Date.now();
-            let grupoElemento = null;
+            let ultimaQtdResultados = -1;
+            let contadorSemMudanca = 0;
+            let resultadosAnteriores = [];
+
             while ((Date.now() - inicio) < maxTempo) {
-                const resultados = Array.from(document.querySelectorAll('div[role="row"] span[title]'));
-                grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
-                if (grupoElemento) break;
-                await esperar(50);
+                const resultados = Array.from(document.querySelectorAll('div[role="row"] span[title]'))
+                    .filter(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
+
+                // Se a lista estiver estável (mesmo array ou mesmo comprimento) por algumas interações, assume completa
+                if (resultados.length === ultimaQtdResultados &&
+                    resultados.every((el, idx) => el === resultadosAnteriores[idx])) {
+                    contadorSemMudanca++;
+                    if (contadorSemMudanca >= 5) {
+                        // estabilidade detectada
+                        if (resultados.length > 0) {
+                            cliqueReal(resultados[0]);
+                            await esperar(150);
+                            return resultados[0];
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    // Resetar contador se mudou
+                    contadorSemMudanca = 0;
+                }
+
+                ultimaQtdResultados = resultados.length;
+                resultadosAnteriores = resultados;
+
+                await esperar(150);
             }
-            if (!grupoElemento) {
-                console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
-                await limparAntesDeDigitar(inputPesquisa);
-                return null;
+
+            // Caso não tenha encontrado o grupo na lista estável, tenta encontrar qualquer resultado e clicar
+            const ultimaLista = Array.from(document.querySelectorAll('div[role="row"] span[title]'))
+                .filter(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
+            if (ultimaLista.length > 0) {
+                cliqueReal(ultimaLista[0]);
+                await esperar(150);
+                return ultimaLista[0];
             }
-            cliqueReal(grupoElemento);
-            await esperar(100);
-            const chatTitleSelector = 'header span[title], header div[title]';
-            const chatTitleElement = await esperarElemento(chatTitleSelector, 1000);
-            const maxCheckTempo = 1000;
-            const inicioCheck = Date.now();
-            let titleAtual = '';
-            while ((Date.now() - inicioCheck) < maxCheckTempo) {
-                titleAtual = chatTitleElement?.getAttribute('title') || chatTitleElement?.textContent || '';
-                if (normalizarTexto(titleAtual).includes(nomeNorm)) break;
-                await esperar(200);
-            }
-            await esperar(300);
-            return grupoElemento;
+
+            // Falha
+            console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
+            await limparAntesDeDigitar(inputPesquisa);
+            return null;
+
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
             const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
@@ -266,19 +287,19 @@ const MINHA_KEY = getMinhaKey();
 
         loadingContainerAnim = document.createElement('div');
         loadingContainerAnim.style.position = 'fixed';
-        loadingContainerAnim.style.bottom = '10px'; // alinhado verticalmente com o emoji de 40px altura + padding
-        loadingContainerAnim.style.right = '70px'; // 25px (marca d'água) + 40px largura do emoji + 5px gap
+        loadingContainerAnim.style.bottom = '10px';
+        loadingContainerAnim.style.right = '70px';
         loadingContainerAnim.style.minWidth = '220px';
         loadingContainerAnim.style.maxWidth = '260px';
-        loadingContainerAnim.style.padding = '6px 12px';  // mais fino (reduz paddings)
-        loadingContainerAnim.style.backgroundColor = corFundo; // cor de fundo clara suave
-        loadingContainerAnim.style.color = corTexto; // cor do texto escura suave
+        loadingContainerAnim.style.padding = '6px 12px';
+        loadingContainerAnim.style.backgroundColor = corFundo;
+        loadingContainerAnim.style.color = corTexto;
         loadingContainerAnim.style.borderRadius = '10px';
-        loadingContainerAnim.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)'; // sombra leve e suave
+        loadingContainerAnim.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
         loadingContainerAnim.style.fontFamily = "'Roboto', sans-serif";
-        loadingContainerAnim.style.fontWeight = '300'; // fonte fina
-        loadingContainerAnim.style.fontSize = '13px'; // font-size ligeiramente menor para popup mais fino
-        loadingContainerAnim.style.lineHeight = '1.3'; // line-height reduzido
+        loadingContainerAnim.style.fontWeight = '300';
+        loadingContainerAnim.style.fontSize = '13px';
+        loadingContainerAnim.style.lineHeight = '1.3';
         loadingContainerAnim.style.userSelect = 'none';
         loadingContainerAnim.style.cursor = 'default';
         loadingContainerAnim.style.zIndex = '999999';
@@ -293,17 +314,15 @@ const MINHA_KEY = getMinhaKey();
         loadingTexto.style.flex = '1';
         loadingTexto.style.overflow = 'hidden';
         loadingTexto.style.textOverflow = 'ellipsis';
-        loadingTexto.style.paddingBottom = '1px'; // evita corte visual final
+        loadingTexto.style.paddingBottom = '1px';
         loadingContainerAnim.appendChild(loadingTexto);
 
-        // Configura evento de clique para fechar popup APENAS se automação NÃO estiver rodando
         if (fecharComCliqueHandler) {
             document.removeEventListener('click', fecharComCliqueHandler);
             fecharComCliqueHandler = null;
         }
 
         fecharComCliqueHandler = (event) => {
-            // Só fecha se a automação estiver parada
             if (!automacaoRodando && loadingContainerAnim) {
                 fecharPopupAnimado();
             }
@@ -312,7 +331,6 @@ const MINHA_KEY = getMinhaKey();
 
         document.body.appendChild(loadingContainerAnim);
 
-        // Entrada suave
         loadingContainerAnim.style.opacity = '0';
         loadingContainerAnim.style.transform = 'translateY(12px)';
         setTimeout(() => {
@@ -322,11 +340,6 @@ const MINHA_KEY = getMinhaKey();
         }, 10);
     }
 
-    /**
-     * Atualiza texto do popup animado e o estilo de cores.
-     * Para texto "Envios finalizados" aplica fundo verde bem claro e texto escuro.
-     * Para outros textos, fundo cinza claro padrão e texto padrão.
-     */
     async function atualizarTextoPopup(textoNovo, fecharDepois = false, delayAntesEntrada = 0, fecharDepoisClicar = false) {
         if (!loadingTexto || !loadingContainerAnim) return;
         loadingTexto.style.opacity = '0';
@@ -334,18 +347,17 @@ const MINHA_KEY = getMinhaKey();
         await esperar(250);
 
         const textoLower = textoNovo.toLowerCase();
-        if (textoLower.includes('Envios Finalizados') || textoLower.includes('envios finalizado')) {
-            // Verde bem claro clean pastel
-            loadingContainerAnim.style.backgroundColor = '#d0f0d9'; // verde pastel claro
-            loadingTexto.style.color = '#2c5d2d'; // verde escuro suave para contraste
+        if (textoLower.includes('envios finalizados') || textoLower.includes('envios finalizado')) {
+            loadingContainerAnim.style.backgroundColor = '#d0f0d9';
+            loadingTexto.style.color = '#2c5d2d';
         } else if (textoLower.includes('key valida')) {
-            loadingContainerAnim.style.backgroundColor = '#d0f0e1'; // verde azulado suave como antes
+            loadingContainerAnim.style.backgroundColor = '#d0f0e1';
             loadingTexto.style.color = '#333333';
         } else if (textoLower.includes('key invalida')) {
-            loadingContainerAnim.style.backgroundColor = '#d9534f'; // vermelho suave para erro
+            loadingContainerAnim.style.backgroundColor = '#d9534f';
             loadingTexto.style.color = '#ffffff';
         } else {
-            loadingContainerAnim.style.backgroundColor = '#e3e6e8'; // cinza claro padrão
+            loadingContainerAnim.style.backgroundColor = '#e3e6e8';
             loadingTexto.style.color = '#333333';
         }
 
@@ -380,7 +392,6 @@ const MINHA_KEY = getMinhaKey();
         }
     }
 
-    // Atualizando as mensagens conforme pedido na verificação da Key e no disparo:
     async function verificarKeyAutorizadaComPopup() {
         if (!loadingContainerAnim) {
             criarPopupAnimadoAnim('VALIDANDO KEY...', '#333333', '#e3e6e8');
@@ -398,7 +409,6 @@ const MINHA_KEY = getMinhaKey();
         }
     }
 
-    // --- Popup relatório final moderno e responsivo ---
     let popupRelatorioFinalEl = null;
     function criarPopupRelatorioFinal(texto, nomeEnvio = null) {
         if (popupRelatorioFinalEl) {
@@ -450,7 +460,7 @@ const MINHA_KEY = getMinhaKey();
         textarea.style.fontSize = '14px';
         textarea.style.lineHeight = '1.4';
         textarea.style.fontFamily = "'Roboto', monospace";
-        textarea.style.boxSizing = 'border-box'; // corrige corte à direita
+        textarea.style.boxSizing = 'border-box';
         textarea.readOnly = true;
         textarea.value = texto;
         popupRelatorioFinalEl.appendChild(textarea);
@@ -484,11 +494,11 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function dispararMensagens() {
-        automacaoRodando = true; // sinaliza que automação começou
+        automacaoRodando = true;
         const keyOK = await verificarKeyAutorizadaComPopup();
         if (!keyOK) {
             console.warn('Mensagens nao serao enviadas.');
-            automacaoRodando = false; // libera eventos clique para fechar popup
+            automacaoRodando = false;
             return;
         }
 
@@ -535,12 +545,10 @@ const MINHA_KEY = getMinhaKey();
                 }
             }
 
-            // Atualiza o texto do popup animado para indicar o fim com verde suave
             if (loadingTexto && loadingContainerAnim) {
                 await atualizarTextoPopup('Envios Finalizados', false, 0, false);
             }
 
-            // Extrai o nome do envio da célula B1 (linha 0, coluna 1)
             const celulaB1 = rows[0]?.c[1]?.v || null;
             function extrairNomeEnvio(nomeCompleto) {
                 if (!nomeCompleto) return null;
@@ -550,7 +558,7 @@ const MINHA_KEY = getMinhaKey();
             const nomeEnvio = extrairNomeEnvio(celulaB1);
 
             let relatorio = '';
-            relatorio += extrairNomeEnvio(celulaB1) + '\n\n';
+            relatorio += (nomeEnvio ? nomeEnvio + '\n\n' : '');
             relatorio += `${totalEnviados} listas e mensagens enviadas\n`;
             relatorio += `${totalFalhas} erros encontrados\n\n`;
             if (erros.length > 0) {
@@ -570,7 +578,7 @@ const MINHA_KEY = getMinhaKey();
             }
             criarPopupRelatorioFinal(`Erro inesperado ao processar a planilha: ${e.message || e}`);
         }
-        automacaoRodando = false; // sinaliza que automação terminou, libera fechar popup clicando
+        automacaoRodando = false;
     }
 
     async function verificarKeyAutorizada() {
