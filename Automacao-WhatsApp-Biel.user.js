@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Automação WhatsApp Biel
+// @name         Automação WhatsApp Biel (Atualizado)
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.18
-// @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio.
-// @author       Gabriel Guedes Araujo da Silva (ajustado)
+// @version      2.19
+// @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio. Com correções para delay e robustez do seletor de pesquisa.
+// @author       Gabriel Guedes Araujo da Silva (ajustado por assistente)
 // @match        https://web.whatsapp.com/*
 // @grant        none
 // @updateURL    https://raw.githubusercontent.com/Andr0idx/Automacoes/main/Automacao-WhatsApp-Biel.user.js
@@ -113,7 +113,7 @@ const MINHA_KEY = getMinhaKey();
 
     async function limparAntesDeDigitar(inputPesquisa) {
         inputPesquisa.focus();
-        await esperar(50);
+        await esperar(100);
         const keydownCtrlA = new KeyboardEvent('keydown', {
             key: 'a',
             code: 'KeyA',
@@ -122,7 +122,7 @@ const MINHA_KEY = getMinhaKey();
             cancelable: true,
         });
         inputPesquisa.dispatchEvent(keydownCtrlA);
-        await esperar(50);
+        await esperar(100);
         const keydownDelete = new KeyboardEvent('keydown', {
             key: 'Delete',
             code: 'Delete',
@@ -131,12 +131,13 @@ const MINHA_KEY = getMinhaKey();
         });
         inputPesquisa.dispatchEvent(keydownDelete);
         setInputValueReactCompatible(inputPesquisa, '');
-        await esperar(400);
+        await esperar(600);
     }
 
+    // Agora seletor adaptado para aceitar labels em PT ou EN (mais robusto) para campo pesquisa
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
-            const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
+            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
             if (!inputPesquisa) throw new Error('Campo de pesquisa não encontrado');
             await limparAntesDeDigitar(inputPesquisa);
             await clicarEFocarCampoPesquisa(inputPesquisa);
@@ -145,20 +146,20 @@ const MINHA_KEY = getMinhaKey();
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionupdate', { data: nomeGrupo, bubbles: true }));
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
             inputPesquisa.dispatchEvent(new Event('input', { bubbles: true }));
-            await esperar(500);
-            inputPesquisa.blur();
-            await esperar(100);
-            inputPesquisa.focus();
             await esperar(700);
+            inputPesquisa.blur();
+            await esperar(200);
+            inputPesquisa.focus();
+            await esperar(1100);
             const nomeNorm = normalizarTexto(nomeGrupo);
-            const maxTempo = 3000;
+            const maxTempo = 4000;
             const inicio = Date.now();
             let grupoElemento = null;
             while ((Date.now() - inicio) < maxTempo) {
                 const resultados = Array.from(document.querySelectorAll('div[role="row"] span[title]'));
                 grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
                 if (grupoElemento) break;
-                await esperar(50);
+                await esperar(60);
             }
             if (!grupoElemento) {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
@@ -166,22 +167,22 @@ const MINHA_KEY = getMinhaKey();
                 return null;
             }
             cliqueReal(grupoElemento);
-            await esperar(100);
+            await esperar(150);
             const chatTitleSelector = 'header span[title], header div[title]';
-            const chatTitleElement = await esperarElemento(chatTitleSelector, 1000);
-            const maxCheckTempo = 1000;
+            const chatTitleElement = await esperarElemento(chatTitleSelector, 1500);
+            const maxCheckTempo = 1200;
             const inicioCheck = Date.now();
             let titleAtual = '';
             while ((Date.now() - inicioCheck) < maxCheckTempo) {
                 titleAtual = chatTitleElement?.getAttribute('title') || chatTitleElement?.textContent || '';
                 if (normalizarTexto(titleAtual).includes(nomeNorm)) break;
-                await esperar(200);
+                await esperar(250);
             }
-            await esperar(300);
+            await esperar(400);
             return grupoElemento;
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
-            const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
+            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
             if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
             return null;
         }
@@ -199,7 +200,7 @@ const MINHA_KEY = getMinhaKey();
         caixa.dispatchEvent(event);
     }
 
-    async function esperarEnvioCompleto(caixa, timeoutMs = 8000) {
+    async function esperarEnvioCompleto(caixa, timeoutMs = 10000) {
         const inicio = Date.now();
         while ((Date.now() - inicio) < timeoutMs) {
             if (!caixa.innerText || caixa.innerText.trim() === '') {
@@ -224,7 +225,7 @@ const MINHA_KEY = getMinhaKey();
                 return false;
             }
             inserirTextoNaCaixa(caixa, mensagem);
-            await esperar(10);
+            await esperar(100);
 
             const tecladoEnviar = new KeyboardEvent('keydown', {
                 key: 'Enter',
@@ -236,20 +237,21 @@ const MINHA_KEY = getMinhaKey();
             });
             caixa.dispatchEvent(tecladoEnviar);
 
-            const enviado = await esperarEnvioCompleto(caixa, 8000);
+            const enviado = await esperarEnvioCompleto(caixa, 10000);
             if (!enviado) {
                 console.warn('Falha ou timeout no envio da mensagem no grupo:', nomeGrupo);
             } else {
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
             }
 
-            const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
+            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
             if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
+            await esperar(500);
 
             return enviado;
         } catch (e) {
             console.error('Erro em enviarMensagem:', e);
-            const inputPesquisa = document.querySelector('input[aria-label="Pesquisar ou começar uma nova conversa"]');
+            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
             if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
             return false;
         }
@@ -518,7 +520,7 @@ const MINHA_KEY = getMinhaKey();
                         totalFalhas++;
                         erros.push(`Erro ao enviar para o grupo "${grupo}": ${e.message || e}`);
                     }
-                    await esperar(500);
+                    await esperar(1800); // delay aumentado aqui para 1.8s
                 }
             }
 
