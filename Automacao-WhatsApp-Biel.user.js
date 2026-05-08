@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel (Atualizado)
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.36
+// @version      2.37
 // @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio. Com correções para delay e robustez do seletor de pesquisa.
 // @author       Gabriel Guedes Araujo da Silva (ajustado por assistente)
 // @match        https://web.whatsapp.com/*
@@ -231,6 +231,13 @@ const MINHA_KEY = getMinhaKey();
         return (t || '').trim();
     }
 
+    function chatAtivoEhTitulo(tituloEsperado) {
+        const atual = normalizarTexto(obterTituloChatAtivoNaLista() || obterTituloChatAtual());
+        const esperado = normalizarTexto(tituloEsperado || '');
+        if (!atual || !esperado) return false;
+        return atual.includes(esperado) || esperado.includes(atual);
+    }
+
     function chatAtivoTemRascunho() {
         const item = obterItemChatAtivo();
         if (!item) return false;
@@ -283,23 +290,11 @@ const MINHA_KEY = getMinhaKey();
             await esperar(5);
             cliqueReal(clicavel);
 
-            let abriu = await esperarCondicao(() => {
-                const atual = obterTituloChatAtivoNaLista();
-                if (!atual) return false;
-                const a = normalizarTexto(atual);
-                const e = normalizarTexto(tituloEsperado);
-                return a.includes(e) || e.includes(a);
-            }, 1200, 30);
+            let abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1200, 30);
 
             if (!abriu) {
                 cliqueReal(clicavel);
-                abriu = await esperarCondicao(() => {
-                    const atual = obterTituloChatAtivoNaLista();
-                    if (!atual) return false;
-                    const a = normalizarTexto(atual);
-                    const e = normalizarTexto(tituloEsperado);
-                    return a.includes(e) || e.includes(a);
-                }, 1200, 30);
+                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1200, 30);
             }
 
             if (!abriu) {
@@ -308,14 +303,16 @@ const MINHA_KEY = getMinhaKey();
                 const up = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
                 inputPesquisa.dispatchEvent(down);
                 inputPesquisa.dispatchEvent(up);
-                await esperarCondicao(() => {
-                    const atual = obterTituloChatAtivoNaLista();
-                    if (!atual) return false;
-                    const a = normalizarTexto(atual);
-                    const e = normalizarTexto(tituloEsperado);
-                    return a.includes(e) || e.includes(a);
-                }, 1800, 30);
+                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1800, 30);
             }
+
+            if (!abriu) {
+                console.warn(`Grupo "${nomeGrupo}" encontrado, mas não abriu o chat. Atual: "${obterTituloChatAtivoNaLista() || obterTituloChatAtual()}"`);
+                await limparPesquisaSeExistir();
+                return null;
+            }
+
+            await esperarCondicao(() => !!chatProntoParaEnviar(), 4000, 60);
             return clicavel;
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
@@ -408,6 +405,11 @@ const MINHA_KEY = getMinhaKey();
             const grupoElemento = await buscarGrupoPorPesquisa(nomeGrupo);
             if (!grupoElemento) {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
+                return false;
+            }
+            if (!chatAtualEhGrupo(nomeGrupo)) {
+                console.warn(`Chat não está no grupo esperado antes do envio: "${nomeGrupo}" (atual: "${obterTituloChatAtivoNaLista() || obterTituloChatAtual()}")`);
+                await limparPesquisaSeExistir();
                 return false;
             }
             const caixa = await obterCaixaMensagemAtual(3500);
