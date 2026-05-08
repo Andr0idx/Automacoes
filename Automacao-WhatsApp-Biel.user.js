@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel (Atualizado)
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.19
+// @version      2.34
 // @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio. Com correções para delay e robustez do seletor de pesquisa.
 // @author       Gabriel Guedes Araujo da Silva (ajustado por assistente)
 // @match        https://web.whatsapp.com/*
@@ -77,6 +77,20 @@ const MINHA_KEY = getMinhaKey();
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    async function esperarCondicao(fn, timeout = 12000, intervalo = 120) {
+        const inicio = Date.now();
+        while (Date.now() - inicio < timeout) {
+            try {
+                const ok = await fn();
+                if (ok) return true;
+            } catch {
+                // noop
+            }
+            await esperar(intervalo);
+        }
+        return false;
+    }
+
     async function esperarElemento(selector, timeout = 15000) {
         const inicio = Date.now();
         while (Date.now() - inicio < timeout) {
@@ -85,6 +99,10 @@ const MINHA_KEY = getMinhaKey();
             await esperar(200);
         }
         throw new Error(`Elemento ${selector} não encontrado após ${timeout}ms`);
+    }
+
+    function elementoVisivel(el) {
+        return !!(el && el.offsetParent !== null);
     }
 
     function cliqueReal(elemento) {
@@ -134,56 +152,133 @@ const MINHA_KEY = getMinhaKey();
         await esperar(600);
     }
 
+    async function obterCampoPesquisa() {
+        const seletores = [
+            'input[role="textbox"][data-tab="3"]',
+            'input[role="textbox"][aria-label*="Pesquisar" i]',
+            'input[role="textbox"][aria-label*="Search" i]',
+            'input[aria-label*="Pesquisar" i]',
+            'input[aria-label*="Search" i]',
+            'input[placeholder*="Pesquisar" i]',
+            'input[placeholder*="Search" i]',
+        ];
+
+        for (const s of seletores) {
+            const el = document.querySelector(s);
+            if (elementoVisivel(el)) return el;
+        }
+
+        const botaoBusca =
+            document.querySelector('button[aria-label*="Pesquisar" i], button[aria-label*="Search" i]') ||
+            document.querySelector('span[data-icon="search"], span[data-icon="search-alt"]')?.closest('button');
+
+        if (botaoBusca) {
+            cliqueReal(botaoBusca);
+            await esperar(200);
+            for (const s of seletores) {
+                const el = document.querySelector(s);
+                if (elementoVisivel(el)) return el;
+            }
+        }
+
+        return null;
+    }
+
+    async function limparPesquisaSeExistir() {
+        const inputPesquisa = await obterCampoPesquisa();
+        if (!inputPesquisa) return;
+        await clicarEFocarCampoPesquisa(inputPesquisa);
+        await limparAntesDeDigitar(inputPesquisa);
+        await esperarCondicao(() => (inputPesquisa.value || '').trim() === '', 4000, 120);
+    }
+
+    function chatProntoParaEnviar() {
+        const caixa =
+            document.querySelector('footer div[contenteditable="true"][role="textbox"]') ||
+            document.querySelector('div[contenteditable="true"][data-tab="10"]');
+        return caixa && elementoVisivel(caixa) ? caixa : null;
+    }
+
+    function obterTituloChatAtual() {
+        const item = obterItemChatAtivo();
+        const tLista = item?.querySelector?.('span[title]')?.getAttribute?.('title') || '';
+        if (tLista) return (tLista || '').trim();
+        const el = document.querySelector('#main header span[title], #main header div[title]');
+        const t = el?.getAttribute?.('title') || el?.textContent || '';
+        return (t || '').trim();
+    }
+
+    function chatAtualEhGrupo(nomeGrupo) {
+        const atual = normalizarTexto(obterTituloChatAtual());
+        const esperado = normalizarTexto(nomeGrupo);
+        if (!atual || !esperado) return false;
+        return atual.includes(esperado);
+    }
+
+    function obterItemChatAtivo() {
+        const pane = document.querySelector('#pane-side');
+        if (!pane) return null;
+        return (
+            pane.querySelector('[aria-selected="true"]') ||
+            pane.querySelector('[aria-current="true"]') ||
+            pane.querySelector('[data-testid][aria-selected="true"]')
+        );
+    }
+
+    function chatAtivoTemRascunho() {
+        const item = obterItemChatAtivo();
+        if (!item) return false;
+        const t = normalizarTexto(item.textContent || '');
+        return t.includes('rascunho') || t.includes('draft');
+    }
+
     // Agora seletor adaptado para aceitar labels em PT ou EN (mais robusto) para campo pesquisa
     async function buscarGrupoPorPesquisa(nomeGrupo) {
         try {
-            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
+            const inputPesquisa = await obterCampoPesquisa();
             if (!inputPesquisa) throw new Error('Campo de pesquisa não encontrado');
-            await limparAntesDeDigitar(inputPesquisa);
             await clicarEFocarCampoPesquisa(inputPesquisa);
+            await limparAntesDeDigitar(inputPesquisa);
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
             setInputValueReactCompatible(inputPesquisa, nomeGrupo);
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionupdate', { data: nomeGrupo, bubbles: true }));
             inputPesquisa.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
             inputPesquisa.dispatchEvent(new Event('input', { bubbles: true }));
-            await esperar(700);
-            inputPesquisa.blur();
-            await esperar(200);
-            inputPesquisa.focus();
-            await esperar(1100);
+            await esperarCondicao(() => (inputPesquisa.value || '').trim().length > 0, 500, 20);
             const nomeNorm = normalizarTexto(nomeGrupo);
-            const maxTempo = 4000;
-            const inicio = Date.now();
             let grupoElemento = null;
-            while ((Date.now() - inicio) < maxTempo) {
-                const resultados = Array.from(document.querySelectorAll('div[role="row"] span[title]'));
-                grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm));
-                if (grupoElemento) break;
-                await esperar(60);
+            let achou = await esperarCondicao(() => {
+                const resultados = Array.from(document.querySelectorAll('#pane-side span[title], div[role="row"] span[title], div[role="listitem"] span[title]'));
+                grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm)) || null;
+                return !!grupoElemento;
+            }, 700, 15);
+            if (!achou) {
+                achou = await esperarCondicao(() => {
+                    const resultados = Array.from(document.querySelectorAll('#pane-side span[title], div[role="row"] span[title], div[role="listitem"] span[title]'));
+                    grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm)) || null;
+                    return !!grupoElemento;
+                }, 5000, 50);
             }
             if (!grupoElemento) {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
-                await limparAntesDeDigitar(inputPesquisa);
+                await limparPesquisaSeExistir();
                 return null;
             }
-            cliqueReal(grupoElemento);
-            await esperar(150);
-            const chatTitleSelector = 'header span[title], header div[title]';
-            const chatTitleElement = await esperarElemento(chatTitleSelector, 1500);
-            const maxCheckTempo = 1200;
-            const inicioCheck = Date.now();
-            let titleAtual = '';
-            while ((Date.now() - inicioCheck) < maxCheckTempo) {
-                titleAtual = chatTitleElement?.getAttribute('title') || chatTitleElement?.textContent || '';
-                if (normalizarTexto(titleAtual).includes(nomeNorm)) break;
-                await esperar(250);
+            const clicavel =
+                grupoElemento.closest('div[role="listitem"]') ||
+                grupoElemento.closest('div[role="row"]') ||
+                grupoElemento.closest('button') ||
+                grupoElemento;
+
+            if (clicavel?.scrollIntoView) {
+                clicavel.scrollIntoView({ block: 'center' });
             }
-            await esperar(400);
-            return grupoElemento;
+            await esperar(5);
+            cliqueReal(clicavel);
+            return clicavel;
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
-            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
-            if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
+            await limparPesquisaSeExistir();
             return null;
         }
     }
@@ -201,15 +296,70 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function esperarEnvioCompleto(caixa, timeoutMs = 10000) {
-        const inicio = Date.now();
-        while ((Date.now() - inicio) < timeoutMs) {
-            if (!caixa.innerText || caixa.innerText.trim() === '') {
-                return true;
-            }
-            await esperar(150);
-        }
-        console.warn('Timeout aguardando campo de mensagem vazio (envio completo).');
-        return false;
+        const ok = await esperarCondicao(() => !caixa.innerText || caixa.innerText.trim() === '', timeoutMs, 60);
+        if (!ok) console.warn('Timeout aguardando campo de mensagem vazio (envio completo).');
+        return ok;
+    }
+
+    function tentarEnviarComEnter(caixa) {
+        const down = new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+        });
+        const up = new KeyboardEvent('keyup', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+        });
+        caixa.dispatchEvent(down);
+        caixa.dispatchEvent(up);
+    }
+
+    function tentarEnviarComBotao() {
+        const btn =
+            document.querySelector('span[data-icon="send"]')?.closest('button') ||
+            document.querySelector('button[aria-label*="Enviar" i], button[aria-label*="Send" i]');
+        if (!btn) return false;
+        const ariaDisabled = btn.getAttribute?.('aria-disabled');
+        const disabled = ariaDisabled === 'true' || btn.disabled === true;
+        if (disabled) return false;
+        cliqueReal(btn);
+        return true;
+    }
+
+    async function obterCaixaMensagemAtual(timeout = 8000) {
+        let caixa = null;
+        const ok = await esperarCondicao(() => {
+            caixa =
+                document.querySelector('footer div[contenteditable="true"][role="textbox"]') ||
+                document.querySelector('div[contenteditable="true"][data-tab="10"]');
+            return !!(caixa && elementoVisivel(caixa));
+        }, timeout, 80);
+        if (!ok) return null;
+        return caixa;
+    }
+
+    async function aguardarConfirmacaoEnvio(mensagem, timeoutMs = 12000) {
+        const msgNorm = normalizarTexto(mensagem);
+        const ok = await esperarCondicao(() => {
+            const caixa =
+                document.querySelector('footer div[contenteditable="true"][role="textbox"]') ||
+                document.querySelector('div[contenteditable="true"][data-tab="10"]');
+            if (!caixa) return false;
+            const vazio = normalizarTexto(caixa.innerText || '') === '';
+            if (!vazio) return false;
+            if (chatAtivoTemRascunho()) return false;
+            if (msgNorm) return true;
+            return true;
+        }, timeoutMs, 80);
+        return ok;
     }
 
     async function enviarMensagem(nomeGrupo, mensagem) {
@@ -219,40 +369,65 @@ const MINHA_KEY = getMinhaKey();
                 console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
                 return false;
             }
-            const caixa = await esperarElemento('div[contenteditable="true"][data-tab="10"]');
+            const inputPesquisa = await obterCampoPesquisa();
+            let abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 1200, 60);
+            if (!abriu) {
+                for (let tentativa = 0; tentativa < 2 && !abriu; tentativa++) {
+                    cliqueReal(grupoElemento);
+                    abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 1200, 60);
+                }
+            }
+            if (!abriu && inputPesquisa) {
+                await clicarEFocarCampoPesquisa(inputPesquisa);
+                const down = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
+                const up = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
+                inputPesquisa.dispatchEvent(down);
+                inputPesquisa.dispatchEvent(up);
+                abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 2000, 60);
+            }
+
+            if (!abriu) {
+                console.warn(`Grupo "${nomeGrupo}" não abriu para envio. Atual: "${obterTituloChatAtual()}"`);
+                await limparPesquisaSeExistir();
+                return false;
+            }
+
+            const caixa = await obterCaixaMensagemAtual(5000);
             if (!caixa) {
                 console.error('Caixa de mensagem não encontrada!');
                 return false;
             }
             inserirTextoNaCaixa(caixa, mensagem);
-            await esperar(100);
+            await esperarCondicao(async () => {
+                const atual = await obterCaixaMensagemAtual(2000);
+                return !!((atual?.innerText || '').trim().length);
+            }, 1500, 60);
 
-            const tecladoEnviar = new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true
-            });
-            caixa.dispatchEvent(tecladoEnviar);
+            const clicouPrimeiro = tentarEnviarComBotao();
+            if (!clicouPrimeiro) {
+                tentarEnviarComEnter(caixa);
+            }
 
-            const enviado = await esperarEnvioCompleto(caixa, 10000);
+            let enviado = await aguardarConfirmacaoEnvio(mensagem, 8000);
+            if (!enviado) {
+                const clicou = tentarEnviarComBotao();
+                if (!clicou) {
+                    tentarEnviarComEnter(caixa);
+                }
+                enviado = await aguardarConfirmacaoEnvio(mensagem, 8000);
+            }
             if (!enviado) {
                 console.warn('Falha ou timeout no envio da mensagem no grupo:', nomeGrupo);
             } else {
                 console.log(`Mensagem enviada para: ${nomeGrupo}`);
             }
 
-            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
-            if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
-            await esperar(500);
+            if (enviado) await limparPesquisaSeExistir();
 
             return enviado;
         } catch (e) {
             console.error('Erro em enviarMensagem:', e);
-            const inputPesquisa = document.querySelector('input[aria-label*="pesquisar"], input[aria-label*="Search"]');
-            if (inputPesquisa) await limparAntesDeDigitar(inputPesquisa);
+            await limparPesquisaSeExistir();
             return false;
         }
     }
@@ -508,6 +683,9 @@ const MINHA_KEY = getMinhaKey();
                 const mensagem = rows[i].c[3]?.v || '';
                 if (grupo && mensagem) {
                     console.log(`Enviando para "${grupo}": ${mensagem}`);
+                    if (loadingTexto && loadingContainerAnim) {
+                        await atualizarTextoPopup(`Enviando (${i}/${rows.length - 1})`, false, 0);
+                    }
                     try {
                         const sucesso = await enviarMensagem(grupo, mensagem);
                         if (sucesso) {
@@ -520,7 +698,11 @@ const MINHA_KEY = getMinhaKey();
                         totalFalhas++;
                         erros.push(`Erro ao enviar para o grupo "${grupo}": ${e.message || e}`);
                     }
-                    await esperar(1800); // delay aumentado aqui para 1.8s
+                    await esperarCondicao(async () => {
+                        const inputPesquisa = await obterCampoPesquisa();
+                        if (!inputPesquisa) return true;
+                        return (inputPesquisa.value || '').trim() === '';
+                    }, 8000, 120);
                 }
             }
 
