@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel (Atualizado)
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.34
+// @version      2.36
 // @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio. Com correções para delay e robustez do seletor de pesquisa.
 // @author       Gabriel Guedes Araujo da Silva (ajustado por assistente)
 // @match        https://web.whatsapp.com/*
@@ -126,12 +126,12 @@ const MINHA_KEY = getMinhaKey();
             inputEl.dispatchEvent(new MouseEvent(tipo, { bubbles: true, cancelable: true, view: window }))
         );
         inputEl.focus();
-        await esperar(100);
+        await esperar(40);
     }
 
     async function limparAntesDeDigitar(inputPesquisa) {
         inputPesquisa.focus();
-        await esperar(100);
+        await esperar(40);
         const keydownCtrlA = new KeyboardEvent('keydown', {
             key: 'a',
             code: 'KeyA',
@@ -140,7 +140,7 @@ const MINHA_KEY = getMinhaKey();
             cancelable: true,
         });
         inputPesquisa.dispatchEvent(keydownCtrlA);
-        await esperar(100);
+        await esperar(40);
         const keydownDelete = new KeyboardEvent('keydown', {
             key: 'Delete',
             code: 'Delete',
@@ -149,7 +149,7 @@ const MINHA_KEY = getMinhaKey();
         });
         inputPesquisa.dispatchEvent(keydownDelete);
         setInputValueReactCompatible(inputPesquisa, '');
-        await esperar(600);
+        await esperar(120);
     }
 
     async function obterCampoPesquisa() {
@@ -225,6 +225,12 @@ const MINHA_KEY = getMinhaKey();
         );
     }
 
+    function obterTituloChatAtivoNaLista() {
+        const item = obterItemChatAtivo();
+        const t = item?.querySelector?.('span[title]')?.getAttribute?.('title') || '';
+        return (t || '').trim();
+    }
+
     function chatAtivoTemRascunho() {
         const item = obterItemChatAtivo();
         if (!item) return false;
@@ -264,6 +270,7 @@ const MINHA_KEY = getMinhaKey();
                 await limparPesquisaSeExistir();
                 return null;
             }
+            const tituloEsperado = (grupoElemento.getAttribute?.('title') || grupoElemento.title || nomeGrupo || '').trim();
             const clicavel =
                 grupoElemento.closest('div[role="listitem"]') ||
                 grupoElemento.closest('div[role="row"]') ||
@@ -275,6 +282,40 @@ const MINHA_KEY = getMinhaKey();
             }
             await esperar(5);
             cliqueReal(clicavel);
+
+            let abriu = await esperarCondicao(() => {
+                const atual = obterTituloChatAtivoNaLista();
+                if (!atual) return false;
+                const a = normalizarTexto(atual);
+                const e = normalizarTexto(tituloEsperado);
+                return a.includes(e) || e.includes(a);
+            }, 1200, 30);
+
+            if (!abriu) {
+                cliqueReal(clicavel);
+                abriu = await esperarCondicao(() => {
+                    const atual = obterTituloChatAtivoNaLista();
+                    if (!atual) return false;
+                    const a = normalizarTexto(atual);
+                    const e = normalizarTexto(tituloEsperado);
+                    return a.includes(e) || e.includes(a);
+                }, 1200, 30);
+            }
+
+            if (!abriu) {
+                await clicarEFocarCampoPesquisa(inputPesquisa);
+                const down = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
+                const up = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
+                inputPesquisa.dispatchEvent(down);
+                inputPesquisa.dispatchEvent(up);
+                await esperarCondicao(() => {
+                    const atual = obterTituloChatAtivoNaLista();
+                    if (!atual) return false;
+                    const a = normalizarTexto(atual);
+                    const e = normalizarTexto(tituloEsperado);
+                    return a.includes(e) || e.includes(a);
+                }, 1800, 30);
+            }
             return clicavel;
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
@@ -369,30 +410,7 @@ const MINHA_KEY = getMinhaKey();
                 console.warn(`Grupo "${nomeGrupo}" não encontrado na pesquisa`);
                 return false;
             }
-            const inputPesquisa = await obterCampoPesquisa();
-            let abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 1200, 60);
-            if (!abriu) {
-                for (let tentativa = 0; tentativa < 2 && !abriu; tentativa++) {
-                    cliqueReal(grupoElemento);
-                    abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 1200, 60);
-                }
-            }
-            if (!abriu && inputPesquisa) {
-                await clicarEFocarCampoPesquisa(inputPesquisa);
-                const down = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
-                const up = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
-                inputPesquisa.dispatchEvent(down);
-                inputPesquisa.dispatchEvent(up);
-                abriu = await esperarCondicao(() => chatAtualEhGrupo(nomeGrupo), 2000, 60);
-            }
-
-            if (!abriu) {
-                console.warn(`Grupo "${nomeGrupo}" não abriu para envio. Atual: "${obterTituloChatAtual()}"`);
-                await limparPesquisaSeExistir();
-                return false;
-            }
-
-            const caixa = await obterCaixaMensagemAtual(5000);
+            const caixa = await obterCaixaMensagemAtual(3500);
             if (!caixa) {
                 console.error('Caixa de mensagem não encontrada!');
                 return false;
