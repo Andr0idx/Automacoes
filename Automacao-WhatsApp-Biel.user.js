@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Automação WhatsApp Biel (Atualizado)
 // @namespace    https://github.com/Andr0idx/Automacoes
-// @version      2.37
+// @version      2.38
 // @description  Envio sequencial de mensagens no WhatsApp Web com atualização correta e controle do fluxo para evitar sobreposição no envio. Com correções para delay e robustez do seletor de pesquisa.
 // @author       Gabriel Guedes Araujo da Silva (ajustado por assistente)
 // @match        https://web.whatsapp.com/*
