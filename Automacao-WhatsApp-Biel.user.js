@@ -46,6 +46,9 @@ const MINHA_KEY = getMinhaKey();
     let fecharComCliqueHandler = null;
     let automacaoRodando = false; // controle se a automação está em execução
 
+    const PAUSA_APOS_LIMPAR_PESQUISA_MS = 200;
+    const PAUSA_ENTRE_GRUPOS_MS = 300;
+
     // --- Marca d'água com SOMENTE emoji e pointer-events none para não bloquear cliques ---
     function adicionarIconeMarcaDagua() {
         const container = document.createElement('div');
@@ -190,6 +193,7 @@ const MINHA_KEY = getMinhaKey();
         await clicarEFocarCampoPesquisa(inputPesquisa);
         await limparAntesDeDigitar(inputPesquisa);
         await esperarCondicao(() => (inputPesquisa.value || '').trim() === '', 4000, 120);
+        await esperar(PAUSA_APOS_LIMPAR_PESQUISA_MS);
     }
 
     function chatProntoParaEnviar() {
@@ -723,6 +727,7 @@ const MINHA_KEY = getMinhaKey();
                         if (!inputPesquisa) return true;
                         return (inputPesquisa.value || '').trim() === '';
                     }, 8000, 120);
+                    await esperar(PAUSA_ENTRE_GRUPOS_MS);
                 }
             }
 
