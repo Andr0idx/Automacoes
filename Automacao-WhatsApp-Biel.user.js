@@ -46,8 +46,16 @@ const MINHA_KEY = getMinhaKey();
     let fecharComCliqueHandler = null;
     let automacaoRodando = false; // controle se a automação está em execução
 
-    const PAUSA_APOS_LIMPAR_PESQUISA_MS = 200;
-    const PAUSA_ENTRE_GRUPOS_MS = 300;
+    const PAUSA_APOS_LIMPAR_PESQUISA_MS = 140;
+    const PAUSA_ENTRE_GRUPOS_MS = 320;
+    const INTERVALO_MONITORAMENTO_MS = 15000;
+
+    let timeoutMonitoramentoId = null;
+    let verificacaoMudancaEmAndamento = false;
+    let automacaoDisparoEmAndamento = false;
+    let cachePlanilha = null;
+    let cachePlanilhaTs = 0;
+    let promessaPlanilhaEmAndamento = null;
 
     // --- Marca d'água com SOMENTE emoji e pointer-events none para não bloquear cliques ---
     function adicionarIconeMarcaDagua() {
@@ -80,6 +88,36 @@ const MINHA_KEY = getMinhaKey();
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    function extrairJsonPlanilha(texto) {
+        return JSON.parse(texto.substring(47).slice(0, -2));
+    }
+
+    async function obterDadosPlanilha(force = false) {
+        const agora = Date.now();
+        if (!force && cachePlanilha && (agora - cachePlanilhaTs) < 4000) {
+            return cachePlanilha;
+        }
+
+        if (!force && promessaPlanilhaEmAndamento) {
+            return promessaPlanilhaEmAndamento;
+        }
+
+        promessaPlanilhaEmAndamento = (async () => {
+            const res = await fetch(planilhaURL, { cache: 'no-store' });
+            const texto = await res.text();
+            const json = extrairJsonPlanilha(texto);
+            cachePlanilha = json;
+            cachePlanilhaTs = Date.now();
+            return json;
+        })();
+
+        try {
+            return await promessaPlanilhaEmAndamento;
+        } finally {
+            promessaPlanilhaEmAndamento = null;
+        }
+    }
+
     async function esperarCondicao(fn, timeout = 12000, intervalo = 120) {
         const inicio = Date.now();
         while (Date.now() - inicio < timeout) {
@@ -92,6 +130,17 @@ const MINHA_KEY = getMinhaKey();
             await esperar(intervalo);
         }
         return false;
+    }
+
+    function localizarGrupoNosResultados(nomeNorm) {
+        const candidatos = document.querySelectorAll('#pane-side span[title], #pane-side div[role="row"] span[title], #pane-side div[role="listitem"] span[title]');
+        for (const el of candidatos) {
+            const titulo = el.getAttribute?.('title') || el.title || '';
+            if (titulo && normalizarTexto(titulo).includes(nomeNorm)) {
+                return el;
+            }
+        }
+        return null;
     }
 
     async function esperarElemento(selector, timeout = 15000) {
@@ -265,16 +314,14 @@ const MINHA_KEY = getMinhaKey();
             const nomeNorm = normalizarTexto(nomeGrupo);
             let grupoElemento = null;
             let achou = await esperarCondicao(() => {
-                const resultados = Array.from(document.querySelectorAll('#pane-side span[title], div[role="row"] span[title], div[role="listitem"] span[title]'));
-                grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm)) || null;
+                grupoElemento = localizarGrupoNosResultados(nomeNorm);
                 return !!grupoElemento;
-            }, 700, 15);
+            }, 1200, 120);
             if (!achou) {
                 achou = await esperarCondicao(() => {
-                    const resultados = Array.from(document.querySelectorAll('#pane-side span[title], div[role="row"] span[title], div[role="listitem"] span[title]'));
-                    grupoElemento = resultados.find(el => el.title && normalizarTexto(el.title).includes(nomeNorm)) || null;
+                    grupoElemento = localizarGrupoNosResultados(nomeNorm);
                     return !!grupoElemento;
-                }, 5000, 50);
+                }, 5000, 220);
             }
             if (!grupoElemento) {
                 console.warn(`Grupo "${nomeGrupo}" não encontrado após espera.`);
@@ -294,11 +341,11 @@ const MINHA_KEY = getMinhaKey();
             await esperar(5);
             cliqueReal(clicavel);
 
-            let abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1200, 30);
+            let abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1600, 100);
 
             if (!abriu) {
                 cliqueReal(clicavel);
-                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1200, 30);
+                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1600, 100);
             }
 
             if (!abriu) {
@@ -307,7 +354,7 @@ const MINHA_KEY = getMinhaKey();
                 const up = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true });
                 inputPesquisa.dispatchEvent(down);
                 inputPesquisa.dispatchEvent(up);
-                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 1800, 30);
+                abriu = await esperarCondicao(() => chatAtivoEhTitulo(tituloEsperado), 2200, 120);
             }
 
             if (!abriu) {
@@ -316,7 +363,7 @@ const MINHA_KEY = getMinhaKey();
                 return null;
             }
 
-            await esperarCondicao(() => !!chatProntoParaEnviar(), 4000, 60);
+            await esperarCondicao(() => !!chatProntoParaEnviar(), 4000, 120);
             return clicavel;
         } catch (e) {
             console.error('Erro buscarGrupoPorPesquisa:', e);
@@ -338,7 +385,7 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function esperarEnvioCompleto(caixa, timeoutMs = 10000) {
-        const ok = await esperarCondicao(() => !caixa.innerText || caixa.innerText.trim() === '', timeoutMs, 60);
+        const ok = await esperarCondicao(() => !caixa.innerText || caixa.innerText.trim() === '', timeoutMs, 120);
         if (!ok) console.warn('Timeout aguardando campo de mensagem vazio (envio completo).');
         return ok;
     }
@@ -383,7 +430,7 @@ const MINHA_KEY = getMinhaKey();
                 document.querySelector('footer div[contenteditable="true"][role="textbox"]') ||
                 document.querySelector('div[contenteditable="true"][data-tab="10"]');
             return !!(caixa && elementoVisivel(caixa));
-        }, timeout, 80);
+        }, timeout, 150);
         if (!ok) return null;
         return caixa;
     }
@@ -400,7 +447,7 @@ const MINHA_KEY = getMinhaKey();
             if (chatAtivoTemRascunho()) return false;
             if (msgNorm) return true;
             return true;
-        }, timeoutMs, 80);
+        }, timeoutMs, 150);
         return ok;
     }
 
@@ -425,7 +472,7 @@ const MINHA_KEY = getMinhaKey();
             await esperarCondicao(async () => {
                 const atual = await obterCaixaMensagemAtual(2000);
                 return !!((atual?.innerText || '').trim().length);
-            }, 1500, 60);
+            }, 1800, 120);
 
             const clicouPrimeiro = tentarEnviarComBotao();
             if (!clicouPrimeiro) {
@@ -672,11 +719,18 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function dispararMensagens() {
+        if (automacaoDisparoEmAndamento) {
+            console.log('Disparo ignorado: automacao ja esta em andamento.');
+            return;
+        }
+
+        automacaoDisparoEmAndamento = true;
         automacaoRodando = true;
         const keyOK = await verificarKeyAutorizadaComPopup();
         if (!keyOK) {
             console.warn('Mensagens nao serao enviadas.');
             automacaoRodando = false;
+            automacaoDisparoEmAndamento = false;
             return;
         }
 
@@ -686,9 +740,7 @@ const MINHA_KEY = getMinhaKey();
 
         try {
             console.log('Buscando dados...');
-            const res = await fetch(planilhaURL);
-            const texto = await res.text();
-            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const json = await obterDadosPlanilha();
             const rows = json.table.rows;
             if (!rows || rows.length === 0) {
                 console.warn('Planilha vazia');
@@ -698,6 +750,7 @@ const MINHA_KEY = getMinhaKey();
                 }
                 criarPopupRelatorioFinal('Planilha está vazia, nada para enviar.');
                 automacaoRodando = false;
+                automacaoDisparoEmAndamento = false;
                 return;
             }
             console.log(`Total de linhas: ${rows.length}`);
@@ -766,13 +819,12 @@ const MINHA_KEY = getMinhaKey();
         }
 
         automacaoRodando = false;
+        automacaoDisparoEmAndamento = false;
     }
 
     async function verificarKeyAutorizada() {
         try {
-            const res = await fetch(planilhaURL);
-            const texto = await res.text();
-            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const json = await obterDadosPlanilha();
             const rows = json.table.rows;
             for (let i = 0; i < rows.length; i++) {
                 const key = rows[i].c[4]?.v || '';
@@ -793,9 +845,7 @@ const MINHA_KEY = getMinhaKey();
 
     async function carregarValorInicialA1() {
         try {
-            const res = await fetch(planilhaURL);
-            const texto = await res.text();
-            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const json = await obterDadosPlanilha(true);
             ultimoValorA1 = json.table.rows[0]?.c[0]?.v || '';
             console.log(`Valor inicial da célula A1: "${ultimoValorA1}"`);
         } catch (e) {
@@ -804,10 +854,13 @@ const MINHA_KEY = getMinhaKey();
     }
 
     async function verificarMudanca() {
+        if (verificacaoMudancaEmAndamento || automacaoDisparoEmAndamento) {
+            return;
+        }
+
+        verificacaoMudancaEmAndamento = true;
         try {
-            const res = await fetch(planilhaURL);
-            const texto = await res.text();
-            const json = JSON.parse(texto.substring(47).slice(0, -2));
+            const json = await obterDadosPlanilha(true);
             const novoValor = json.table.rows[0]?.c[0]?.v || '';
             console.log(`Monitorando célula A1 - Último: "${ultimoValorA1}", Atual: "${novoValor}"`);
             if (novoValor !== ultimoValorA1) {
@@ -817,13 +870,34 @@ const MINHA_KEY = getMinhaKey();
             }
         } catch (e) {
             console.error('Erro ao verificar atualização:', e);
+        } finally {
+            verificacaoMudancaEmAndamento = false;
+        }
+    }
+
+    function agendarProximaVerificacao() {
+        if (timeoutMonitoramentoId) {
+            clearTimeout(timeoutMonitoramentoId);
+        }
+        timeoutMonitoramentoId = setTimeout(async () => {
+            await verificarMudanca();
+            agendarProximaVerificacao();
+        }, INTERVALO_MONITORAMENTO_MS);
+    }
+
+    function limparRecursos() {
+        if (timeoutMonitoramentoId) {
+            clearTimeout(timeoutMonitoramentoId);
+            timeoutMonitoramentoId = null;
         }
     }
 
     (async () => {
         await carregarValorInicialA1();
-        setInterval(verificarMudanca, 5000);
+        agendarProximaVerificacao();
     })();
+
+    window.addEventListener('beforeunload', limparRecursos, { once: true });
 
     window.dispararMensagens = dispararMensagens;
     window.enviarMensagem = enviarMensagem;
